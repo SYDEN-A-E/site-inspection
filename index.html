@@ -1063,6 +1063,7 @@ function viewHome(){
   <div class="progress" title="${cl}/${it.length} closed"><i style="width:${it.length?cl/it.length*100:0}%"></i></div></div>`}).join('');
  onAfter(()=>{const q=$('#home-q');if(q){q.oninput=()=>{UI.homeQ=q.value.toLowerCase();$$('.pcard').forEach(c=>c.style.display=c.dataset.search.includes(UI.homeQ)?'':'none')};if(UI.homeQ)q.oninput()}});
  return`<div class="page-head"><h1>Projects<span class="sub">${S.projects.length} project${S.projects.length===1?'':'s'} · ${S.audits.length} inspection${S.audits.length===1?"":"s"} · ${S.items.length} issue${S.items.length===1?"":"s"}</span></h1><div class="actions"><button class="btn primary" data-act="new-project">${ic('plus')} New project</button></div></div>
+ ${Dbx.noCompany?`<div class="hint" id="no-company" role="alert" style="background:#fef2f2;border-color:#fecaca;color:#991b1b;margin:10px 0;font-weight:600">${esc(noCompanyMsg(Dbx.noCompany.email,Dbx.noCompany.unmounted))}</div>`:''}
  ${(()=>{const v=visAllItems();return v.length?statsHTML(v)+tradeHTML(v):''})()}
  ${ps.length?`<div class="list-toolbar" style="margin-top:14px"><input type="search" id="home-q" placeholder="Search projects, clients, references…" value="${esc(UI.homeQ)}"></div><div class="grid cards">${cards}</div>`:emptyHTML('No projects yet','Create your first project, add an inspection and start logging issues with photos.',`<button class="btn primary" data-act="new-project">${ic('plus')} New project</button>`)}`}
 
@@ -1528,6 +1529,11 @@ const DROPBOX_APP_KEY="gh6rb9jz9pgcnwc";
 const DROPBOX_ROOT_FOLDER="/Site Inspection";
 const DROPBOX_TEAM_ID="";
 const ALLOWED_EMAIL_DOMAINS="syden.me,riceperryellis.com";
+/* the ONE company folder: Dropbox shared folder id of "/Site Inspection" (build var COMPANY_SHARED_FOLDER_ID). When set, the app only ever
+   uses that shared folder (wherever the member has it mounted) and never adopts another folder of the same name. */
+const COMPANY_SHARED_FOLDER_ID="15235650483";
+const companySfid=()=>String(localStorage.getItem('sap.dbx.sfidOverride')||COMPANY_SHARED_FOLDER_ID||'').trim();
+const noCompanyMsg=(email,unmounted)=>unmounted?"The company Site Inspection folder is shared with "+(email||'you')+" but is not added to your Dropbox yet. Open dropbox.com › Shared, click Add next to \""+DROPBOX_ROOT_FOLDER.split('/').pop()+"\", then refresh the app.":"You don't have access to the company Site Inspection folder. Ask Fares to share \""+DROPBOX_ROOT_FOLDER+"\" with "+(email||'your Dropbox e-mail')+" (Can edit).";
 /* company e-mail domains (build var ALLOWED_EMAIL_DOMAINS="syden.me,riceperryellis.com") – used for Dropbox sign-in, team members and texts */
 const allowedDomains=()=>String(ALLOWED_EMAIL_DOMAINS||'').split(/[,;\s]+/).map(x=>x.trim().toLowerCase().replace(/^@/,'')).filter(Boolean);
 const domainOk=email=>{const d=allowedDomains();return!d.length||d.includes(String(email||'').trim().toLowerCase().split('@').pop())};
@@ -1609,22 +1615,46 @@ const Dbx={loc:null,
     (succeeds only for users allowed to write there, e.g. the admin). */
  async resolveFolder(){const a=await this.rpc('users/get_current_account');const ri=a.root_info||{};const teamSpace=!!(ri.root_namespace_id&&ri.root_namespace_id!==ri.home_namespace_id);
   const bad=this.accountProblem(a);if(bad)throw new DbxErr(bad,'auth');const t=this.tok();if(t){t.account={name:a.name&&a.name.display_name,email:a.email,team:{id:a.team.id,name:a.team.name}};this.setTok(t)}
-  const base={rootNs:ri.root_namespace_id||null,homeNs:ri.home_namespace_id||null,homePath:ri.home_path||'',teamSpace,checkedAt:Date.now()};const set=(root,folder,how)=>{this.loc={...base,root,folder,how};localStorage.setItem('sap.dbx.loc',JSON.stringify(this.loc));return this.loc};
+  const base={rootNs:ri.root_namespace_id||null,homeNs:ri.home_namespace_id||null,homePath:ri.home_path||'',teamSpace,checkedAt:Date.now()};const set=(root,folder,how,x)=>{this.noCompany=null;this.loc={...base,root,folder,how,...(x||{})};localStorage.setItem('sap.dbx.loc',JSON.stringify(this.loc));return this.loc};
   const roots=teamSpace?[String(ri.root_namespace_id),null]:[null];const ok=e=>['notfound','noaccess'].includes(e.kind);
+  const sfid=companySfid();
+  if(sfid){/* by shared folder id only: 1 the member's mount of that shared folder (any path), 2 the namespace path ns:<id> (not mounted) */
+   const m=await this.findCompanyMount(sfid,roots);if(m)return set(m.root,m.path,'shared folder id',{sfid,verifiedAt:Date.now()});
+   /* shared with the member but not added to their Dropbox: files in an unmounted folder have no paths, so the app cannot sync it */
+   let unmounted=false;try{await this.rpc('files/list_folder',{path:'ns:'+sfid,recursive:false,limit:1},{root:null});unmounted=true}catch(e){if(!ok(e))throw e}
+   this.loc=null;localStorage.removeItem('sap.dbx.loc');this.noCompany={email:String(a.email||''),unmounted,at:Date.now()};throw new DbxErr(noCompanyMsg(a.email,unmounted),'noaccess')}
   for(const root of roots){try{const m=await this.rpc('files/get_metadata',{path:DROPBOX_ROOT_FOLDER},{root});if(m['.tag']==='folder')return set(root,m.path_display,root?'team space':'home')}catch(e){if(!ok(e))throw e}}
   for(const root of roots){try{const r=await this.rpc('files/search_v2',{query:rootName(),options:{file_categories:[{'.tag':'folder'}],max_results:50}},{root});
     const ms=(r.matches||[]).map(x=>x.metadata&&x.metadata.metadata).filter(m=>m&&m['.tag']==='folder'&&m.name.toLowerCase()===rootName().toLowerCase()).sort((x,y)=>x.path_display.length-y.path_display.length);
-    /* every project folder has a data subfolder with the same name ("Site Inspection") – never use one of those as the company folder */
+    /* legacy builds without COMPANY_SHARED_FOLDER_ID only (production always has the id): never a project's data subfolder */
     let pick=null;for(const m of ms.slice(0,12)){const k=await this.folderKind(m.path_display,root);if(k==='company'){pick=m;break}if(k==='plain'&&!pick)pick=m}
     if(pick)return set(root,pick.path_display,'search')}catch(e){if(!ok(e)&&e.kind!=='api')throw e}}
   if(teamSpace){try{const r=await this.rpc('files/create_folder_v2',{path:DROPBOX_ROOT_FOLDER,autorename:false},{root:String(ri.root_namespace_id)});toast('Created the shared company folder “'+DROPBOX_ROOT_FOLDER+'”. Share it with your staff in Dropbox.',5000);return set(String(ri.root_namespace_id),r.metadata.path_display,'created')}catch(e){if(e.kind==='offline')throw e}}
   this.loc=null;localStorage.removeItem('sap.dbx.loc');throw new DbxErr(NOACCESS_MSG,'noaccess')},
+ /* where is shared folder <sfid> mounted for this member? read-only, existing scopes: sharing_info.shared_folder_id of the build path, of the
+    root listing, then of folders found by name */
+ sfOf(m){const si=m&&m.sharing_info||{};return String(si.shared_folder_id||m&&m.shared_folder_id||'')},
+ async findCompanyMount(sfid,roots){const ok=e=>['notfound','noaccess'].includes(e.kind);
+  /* 0 children of ns:<id> carry the member's own path when the folder is mounted (any name, any depth) */
+  try{const r=await this.rpc('files/list_folder',{path:'ns:'+sfid,recursive:false,limit:5},{root:null});for(const e of r.entries||[]){const d=e.path_display;if(!d||!e.name||!d.toLowerCase().endsWith('/'+e.name.toLowerCase()))continue;const mp=d.slice(0,d.length-e.name.length-1);if(!mp)continue;
+    try{const m=await this.rpc('files/get_metadata',{path:mp},{root:null});if(m['.tag']==='folder'&&this.sfOf(m)===sfid)return{root:null,path:m.path_display||mp}}catch(x){if(!ok(x))throw x}}}catch(e){if(!ok(e)&&e.kind!=='api')throw e}
+  for(const root of roots){try{const m=await this.rpc('files/get_metadata',{path:DROPBOX_ROOT_FOLDER},{root});if(m['.tag']==='folder'&&this.sfOf(m)===sfid)return{root,path:m.path_display}}catch(e){if(!ok(e))throw e}}
+  for(const root of roots){try{const r=await this.listAll('',false,{root});const e=r.entries.find(x=>x['.tag']==='folder'&&this.sfOf(x)===sfid);if(e)return{root,path:e.path_display}}catch(e){if(!ok(e)&&e.kind!=='api')throw e}}
+  for(const root of roots){try{const r=await this.rpc('files/search_v2',{query:rootName(),options:{file_categories:[{'.tag':'folder'}],max_results:50}},{root});
+    const ms=(r.matches||[]).map(x=>x.metadata&&x.metadata.metadata).filter(m=>m&&m['.tag']==='folder');
+    for(const m of ms.slice(0,25)){let s=this.sfOf(m);if(!s){try{s=this.sfOf(await this.rpc('files/get_metadata',{path:m.path_display},{root}))}catch(e){if(!ok(e))throw e}}if(s===sfid)return{root,path:m.path_display}}}catch(e){if(!ok(e)&&e.kind!=='api')throw e}}
+  return null},
+ /* is the cached company folder still THE shared folder? */
+ async locValid(l,sfid){try{if(String(l.folder).startsWith('ns:'))return false;const m=await this.rpc('files/get_metadata',{path:l.folder},{root:l.root});return m['.tag']==='folder'&&this.sfOf(m)===sfid}catch(e){if(!['notfound','noaccess'].includes(e.kind))throw e;return false}},
  /* 'company' = has _registry or data (the app's company folder), 'project' = a project's data subfolder (_siteinspection), else 'plain' */
  async folderKind(path,root){const has=async n=>{try{const m=await this.rpc('files/get_metadata',{path:path+'/'+n},{root});return m['.tag']==='folder'}catch(e){if(['notfound','noaccess'].includes(e.kind))return false;throw e}};
   if(await has('_siteinspection'))return'project';if(await has('_registry')||await has('data'))return'company';return'plain'},
  async ensureFolder(){if(!this.loc){try{this.loc=JSON.parse(localStorage.getItem('sap.dbx.loc')||'null')}catch(e){}}
   const prev=this.loc&&{root:this.loc.root,folder:this.loc.folder};let loc=null;
-  const force=this._reloc;this._reloc=false;
+  const force=this._reloc;this._reloc=false;const sfid=companySfid();
+  if(sfid){if(this.loc&&!force&&this.loc.sfid===sfid&&await this.locValid(this.loc,sfid))loc=this.loc;
+   else if(this.loc)console.warn('Company folder',this.loc.folder,'is not the shared company folder',sfid,'– switching');
+   if(!loc)loc=await this.resolveFolder();if(prev&&(prev.folder!==loc.folder||String(prev.root)!==String(loc.root)))this.locChanged(prev,loc);return loc}
   if(this.loc&&!force){try{const m=await this.rpc('files/get_metadata',{path:this.loc.folder},{root:this.loc.root});if(m['.tag']==='folder')loc=this.loc}catch(e){if(!['notfound','noaccess'].includes(e.kind))throw e}}
   /* a folder found by search (older versions could pick a project's "Site Inspection" data subfolder) is re-checked at least daily */
   if(loc&&loc.how==='search'&&(!loc.verifiedAt||Date.now()-loc.verifiedAt>864e5)){const old=loc;
@@ -1692,7 +1722,7 @@ function dbxMoveOk(f,t){if(!dbxGuardOk(f)||!dbxGuardOk(t))return false;const df=
  if(pf==='edits'&&ppf==='_siteinspection'&&GL_FILE.test(dbxBase(f))&&dt===df+'/_deleted'&&dbxBase(t).toLowerCase()===dbxBase(f).toLowerCase())return true; // edit sidecar → edits/_deleted
  return false}
 function dbxGuard(ep,arg){const a=arg||{};const ps=[a.path,a.from_path,a.to_path,...(a.entries||[]).flatMap(e=>[e.path,e.from_path,e.to_path])].filter(x=>x!=null);
- const ok=ep==='files/move_v2'&&a.from_path&&a.to_path&&!a.entries&&dbxMoveOk(a.from_path,a.to_path);
+ const ok=ep==='files/move_v2'&&a.from_path&&a.to_path&&!a.entries&&(dbxMoveOk(a.from_path,a.to_path)||(typeof dbxRegRenameOk==='function'&&dbxRegRenameOk(a.from_path,a.to_path)));
  if(!ok){DBX_GUARD_LOG.push({ep,paths:ps,at:Date.now()});throw new DbxErr('Blocked: the app never deletes anything in Dropbox and never moves folders or files it did not create ('+(ps.join(', ')||ep)+')','guard',0)}}
 let SM=null;
 const Sync={state:'idle',msg:'',
@@ -1718,12 +1748,12 @@ const Sync={state:'idle',msg:'',
   if(this._p){console.warn('Sync appeared stuck – restarting');this.lastErr={at:Date.now(),msg:'Previous sync was stuck for more than 5 minutes and was restarted'}}
   const g=this._gen=(this._gen||0)+1;this._pAt=Date.now();this._p=(async()=>{do{this._again=false;await this.run(manual)}while(this._again&&this._gen===g)})().finally(()=>{if(this._gen===g)this._p=null});return this._p},
  async run(manual){if(!navigator.onLine){this.setState('offline');return}this.setState('syncing');
-  try{await Dbx.ensureFolder();this._runLoc=new Map();let changed=await this.pull();try{if(await this.coSync())changed=true}catch(e){if(['offline','auth'].includes(e.kind))throw e;console.warn('Companies sync failed',e.message)}if(await this.regRead())changed=true;if(await this.linkedPull())changed=true;if(await fixAllNumbers())changed=true;await this.push();await this.regWrite();if(await this.coSync())changed=true;try{await coLogoPrefetch();await coHealLogos()}catch(e){console.warn('Logo check failed',e.message)}await this.flushPdfQueue();await this.photos();await this.linkedPhotos();
+  try{await Dbx.ensureFolder();this._runLoc=new Map();try{await this.strayMerge()}catch(e){if(['offline','auth'].includes(e.kind))throw e;console.warn('Stray registry merge failed',e.message)}let changed=await this.pull();try{if(await this.coSync())changed=true}catch(e){if(['offline','auth'].includes(e.kind))throw e;console.warn('Companies sync failed',e.message)}if(await this.regRead())changed=true;if(await this.linkedPull())changed=true;if(await fixAllNumbers())changed=true;await this.push();await this.regWrite();if(await this.coSync())changed=true;try{await coLogoPrefetch();await coHealLogos()}catch(e){console.warn('Logo check failed',e.message)}await this.flushPdfQueue();await this.photos();await this.linkedPhotos();
    SM.lastSync=Date.now();await DB.put('meta',SM);this.setState('ok');if(changed)safeRender();if(manual)toast('Dropbox sync complete',1400)}
   catch(e){console.warn('Sync failed:',e);this.lastErr={at:Date.now(),msg:e.message||String(e),kind:e.kind||'',stack:String(e.stack||'').slice(0,600)};await DB.put('meta',SM).catch(()=>{});
    if(e.kind==='offline'){this.setState('offline')}else if(e.kind==='noaccess'){this.setState('noaccess',e.message);if(manual)alertBox(e.message,'Company folder')}else if(e.kind==='auth'){this.setState('auth',e.message);if(manual)alertBox(e.message)}
    else{this.setState('error',e.message);clearTimeout(this._rt);this._rt=setTimeout(()=>this.now(),60000);if(manual)alertBox('Dropbox sync failed: '+e.message)}}},
- keyOfPath(p){const F=Dbx.loc.folder;if(p.toLowerCase().indexOf(F.toLowerCase()+'/')!==0)return null;p=p.slice(F.length);const m=/^\/data\/(settings|templates)\.json$/i.exec(p);if(m)return m[1].toLowerCase();const n=/^\/data\/projects\/([^/]+)\.json$/i.exec(p);return n?'projects/'+n[1]:null},
+ keyOfPath(p){const F=Dbx.loc.folder;if(F.startsWith('ns:')){const i=p.toLowerCase().lastIndexOf('/data/');if(i<0)return null;p=p.slice(i)}else{if(p.toLowerCase().indexOf(F.toLowerCase()+'/')!==0)return null;p=p.slice(F.length)}const m=/^\/data\/(settings|templates)\.json$/i.exec(p);if(m)return m[1].toLowerCase();const n=/^\/data\/projects\/([^/]+)\.json$/i.exec(p);return n?'projects/'+n[1]:null},
  pathOf(k){return Dbx.p('/data/'+k+'.json')},
  async pull(){let es=[],cursor=SM.cursor;
   if(cursor){try{let r=await Dbx.rpc('files/list_folder/continue',{cursor});es=r.entries;while(r.has_more){r=await Dbx.rpc('files/list_folder/continue',{cursor:r.cursor});es=es.concat(r.entries)}cursor=r.cursor}catch(e){if(/reset/.test(e.message)||e.kind==='notfound')cursor=null;else throw e}}
@@ -3126,6 +3156,9 @@ async function diagCollect(){const L=[],t=Dbx.tok&&Dbx.tok(),acc=(t&&t.account)|
  L.push(`Dropbox: ${Dbx.connected&&Dbx.connected()?'connected':'NOT connected'}${acc.email?' as '+acc.email:''}${t&&t.account_id?' · account '+t.account_id:''}${acc.team&&acc.team.name?' · team '+acc.team.name+(acc.team.id?' ('+acc.team.id+')':''):' · no team'}`);
  L.push(`Allowed company domains: ${allowedDomains().join(', ')||'any'} · this account ${acc.email?(domainOk(acc.email)?'OK':'NOT a company account'):'?'}`);
  if(loc)L.push(`Dropbox root: ${loc.teamSpace?'team space':'personal/home'} · root namespace ${loc.rootNs||'–'} · home namespace ${loc.homeNs||'–'}${loc.homePath?' ('+loc.homePath+')':''}`);
+ L.push(`Company shared folder id: ${companySfid()||'not set (legacy build)'}${loc&&loc.sfid?' · matched ('+(loc.how||'')+')':''}`);
+ if(Dbx.noCompany)L.push('NO ACCESS: '+noCompanyMsg(Dbx.noCompany.email,Dbx.noCompany.unmounted));
+ {const g=Sync.strayLog;L.push(g&&g.strays&&g.strays.length?`Stray registries merged (${new Date(g.at).toLocaleString()}): `+g.strays.map(x=>`${x.path} → projects [${x.projects.map(p=>(p.code||p.file)+': '+p.why+(p.team&&p.team.length?' {'+p.team.join(', ')+'}':'')).join('; ')||'none'}], companies [${x.companies.join(', ')||'none'}], ${x.renamed?'renamed to '+x.renamed:'not renamed'}${x.error?' – '+x.error:''}`).join(' | '):'Stray registries: none found this session')}
  L.push(`Company folder: ${loc?loc.folder+' (found by '+(loc.how||'?')+(loc.root?', path root '+loc.root:'')+')':'not resolved'} · build folder ${DROPBOX_ROOT_FOLDER}`);
  if(Dbx.connected&&Dbx.connected()&&navigator.onLine){try{const m=await Dbx.rpc('files/get_metadata',{path:DROPBOX_ROOT_FOLDER},{root:loc&&loc.rootNs?String(loc.rootNs):null});L.push(`${DROPBOX_ROOT_FOLDER} at the team root: reachable (${m['.tag']})`)}catch(e){L.push(`${DROPBOX_ROOT_FOLDER} at the team root: NOT reachable (${e.kind||''}: ${e.message})`)}
   if(loc){try{const k=await Dbx.folderKind(loc.folder,loc.root);L.push(`Company folder check: ${k==='company'?'OK (has _registry / data)':k==='project'?'WRONG – this is a project data folder':'reachable, no app data yet'}`)}catch(e){L.push('Company folder check failed: '+e.message)}
@@ -3217,6 +3250,77 @@ async function logoCheck(box,p,close){if(!box)return;const t0=Date.now();window.
   :`<div class="lgwarn" role="alert"><b>No logo found for ${esc(name)} – upload it in Settings › Companies</b><button type="button" class="btn sm" data-lg-open>Open Settings › Companies</button></div><details open><summary>Logo check (screenshot this if the logo should be there)</summary>${tbl}</details>`;
  const b=box.querySelector('[data-lg-open]');if(b)b.onclick=()=>{close&&close(null);location.hash='#/settings';setTimeout(()=>{const k=document.getElementById('co-card');if(k)k.scrollIntoView({block:'start'});if(c&&coCanEdit())coEdit(c)},350)};
  window.__lgchkDone=true}
+
+/* ===== One company folder: merge stray registries =====
+ Older app versions could adopt any folder named "Site Inspection" (a project's data folder, a team folder copy, "Vela By Omniyat Site
+ Inspection" …) as the company folder and write a separate _registry there, so members saw different project lists. The app now only uses
+ the shared folder COMPANY_SHARED_FOLDER_ID (app5 resolveFolder). Once per session, a member with write access merges every OTHER
+ "…Site Inspection/_registry" into the main registry and renames that stray folder to _registry_merged_<date> (a rename only – the guard
+ allows exactly that move). Photos, drawings, reports and data in those folders are never touched. Nothing is ever deleted. */
+const strayParentOk=n=>String(n||'').toLowerCase().endsWith(rootName().toLowerCase());
+const STRAY_RENAME=/^_registry_merged_\d{4}-\d{2}-\d{2}$/;
+/* project registry entry: stray copy vs main copy → {out (entry to write) | null (keep main), why} */
+function regMergeOne(main,stray){
+ if(!stray||stray.format!=='sap-registry-1')return{out:null,why:'not a registry entry'};
+ if(!main)return stray.deleted?{out:null,why:'deleted in the stray copy – not imported'}:{out:stray,why:'copied (missing in the main registry)'};
+ const mu=+main.updatedAt||0,su=+stray.updatedAt||0;
+ if(main.deleted){if(!stray.deleted&&su>mu&&String(main.id)===String(stray.id))return{out:stray,why:'restored (stray copy is newer than the deletion)'};return{out:null,why:'kept the deletion in the main registry'}}
+ if(stray.deleted)return{out:null,why:'stray copy is deleted – main kept'};
+ if(String(main.id)!==String(stray.id)){if(main.replaces===stray.id||mu>=su)return{out:null,why:'main is newer (other project id '+stray.id+' – not imported)'};
+  if(stray.replaces===main.id||su>mu)return{out:stray,why:'stray copy is a newer project ('+stray.id+')'}}
+ const newer=su>mu?stray:main,older=newer===main?stray:main;const by=new Map();
+ for(const m of[...(older.team||[]),...(newer.team||[])]){const k=String(m&&m.email||'').trim().toLowerCase();if(!k)continue;by.set(k,{...(by.get(k)||{}),...m,email:k})}
+ const order=[...(newer.team||[]),...(older.team||[])].map(m=>String(m&&m.email||'').trim().toLowerCase()).filter((k,i,a)=>k&&a.indexOf(k)===i);
+ const out={...newer,team:order.map(k=>by.get(k))};
+ if(JSON.stringify(out)===JSON.stringify(main))return{out:null,why:'already up to date'};
+ return{out,why:newer===main?'team merged into main':'stray copy is newer (team merged)'}}
+/* companies: union by id or name; newest record wins; a logo is never dropped */
+const coHasLogo=c=>!!(c&&(typeof coLogoField==='function'?coLogoField(c):c.logo));
+function coMergeLists(mainList,strayList){const out=(mainList||[]).map(c=>({...c}));const changed=[];
+ const nm=c=>String(c&&c.name||'').trim().toLowerCase();
+ for(const s of strayList||[]){if(!s||!s.id)continue;const i=out.findIndex(c=>c.id===s.id||(nm(c)&&nm(c)===nm(s)));
+  if(i<0){out.push({...s});changed.push((s.name||s.id)+' (added)');continue}
+  const m=out[i];let r=(+s.updatedAt||0)>(+m.updatedAt||0)?{...m,...s,id:m.id}:m;
+  if(!coHasLogo(r)){const src=coHasLogo(m)?m:coHasLogo(s)?s:null;if(src){r={...r};for(const k of['logo','logoAt','logoData','logoDataUrl','logoUrl','image','logoBlob'])if(src[k]!==undefined)r[k]=src[k]}}
+  if(JSON.stringify(r)!==JSON.stringify(m)){out[i]=r;changed.push((r.name||r.id)+' (updated)')}}
+ return{out,changed}}
+/* guard: the only folder move the app may make – <…Site Inspection>/_registry → same parent/_registry_merged_<date>, for a stray folder the
+   merge has just processed (never the company folder) */
+function dbxRegRenameOk(f,t){const sf=dbxSegs(f),st=dbxSegs(t);if((sf.pop()||'').toLowerCase()!=='_registry'||!STRAY_RENAME.test(st.pop()||''))return false;
+ if(sf.join('/').toLowerCase()!==st.join('/').toLowerCase())return false;if(!strayParentOk(sf[sf.length-1]))return false;
+ const F=Dbx.loc&&String(Dbx.loc.folder||'').toLowerCase();if(F&&(String(f).toLowerCase()===F+'/_registry'||String(f).toLowerCase().startsWith(F+'/')))return false;
+ return!!(Sync._strayOk&&Sync._strayOk.has(String(f).toLowerCase()))}
+Object.assign(Sync,{
+ strayLog:(()=>{try{return JSON.parse(localStorage.getItem('sap.strayLog')||'null')}catch(e){return null}})(),
+ async strayFind(){const sfid=companySfid(),L=Dbx.loc,out=[];const roots=L&&L.teamSpace&&L.rootNs?[String(L.rootNs),null]:[null];const seen=new Set();
+  for(const root of roots){let r;try{r=await Dbx.rpc('files/search_v2',{query:'_registry',options:{file_categories:[{'.tag':'folder'}],max_results:100,filename_only:true}},{root})}catch(e){if(['offline','auth'].includes(e.kind))throw e;continue}
+   for(const x of r.matches||[]){const m=x.metadata&&x.metadata.metadata;if(!m||m['.tag']!=='folder'||String(m.name).toLowerCase()!=='_registry')continue;const p=m.path_display;const segs=p.split('/');
+    if(!strayParentOk(segs[segs.length-2]))continue;let md=m;if(!md.sharing_info){try{md=await Dbx.rpc('files/get_metadata',{path:p},{root})}catch(e){continue}}
+    const si=md.sharing_info||{};if(String(si.parent_shared_folder_id||'')===sfid||String(si.shared_folder_id||'')===sfid)continue; // the main registry itself
+    if(L&&!String(L.folder).startsWith('ns:')&&p.toLowerCase()===String(L.folder).toLowerCase()+'/_registry')continue;
+    const k=(root||'')+'|'+p.toLowerCase();if(seen.has(k))continue;seen.add(k);out.push({root,path:p})}}
+  return out},
+ async jsonAt(path,opt){try{const{blob,meta}=await Dbx.download(path,opt);return{j:JSON.parse(await blob.text()),rev:meta&&meta.rev}}catch(e){if(e.kind==='notfound')return null;if(e instanceof SyntaxError)return{j:null};throw e}},
+ async strayMerge(force){const sfid=companySfid();if(!sfid||!Dbx.loc||(this._strayDone&&!force))return null;
+  const strays=await this.strayFind();const log={at:Date.now(),strays:[]};this._strayOk=new Set();
+  for(const st of strays){const opt={root:st.root},rec={path:st.path,projects:[],companies:[],renamed:null,error:null};log.strays.push(rec);
+   try{let es=[];try{es=(await Dbx.listAll(st.path+'/projects',false,opt)).entries.filter(e=>e['.tag']==='file'&&/\.json$/i.test(e.name))}catch(e){if(['offline','auth'].includes(e.kind))throw e}
+    let ok=true;
+    for(const e of es){const s=await this.jsonAt(e.path_display||e.path_lower,opt);if(!s||!s.j){rec.projects.push({file:e.name,why:'unreadable – skipped'});continue}
+     const tp=Dbx.p('/_registry/projects/'+e.name);const m=await this.jsonAt(tp,{});const r=regMergeOne(m&&m.j,s.j);
+     const info={file:e.name,code:s.j.code||'',why:r.why,team:((r.out||m&&m.j||{}).team||[]).map(x=>x.email)};
+     if(r.out){try{await Dbx.upload(tp,new Blob([JSON.stringify(r.out)],{type:'application/json'}),m&&m.rev?{'.tag':'update',update:m.rev}:{'.tag':'add'},{});info.written=true}catch(err){if(['offline','auth'].includes(err.kind))throw err;ok=false;info.why+=' – NOT written ('+err.message+')'}}
+     rec.projects.push(info)}
+    const sc=await this.jsonAt(st.path+'/companies.json',opt);
+    if(sc&&sc.j&&Array.isArray(sc.j.companies)){const mp=Dbx.p('/_registry/companies.json');const mc=await this.jsonAt(mp,{});const base=mc&&mc.j&&Array.isArray(mc.j.companies)?mc.j:{format:'sap-companies-1',companies:[]};
+     const r=coMergeLists(base.companies,sc.j.companies);rec.companies=r.changed;
+     if(r.changed.length){try{await Dbx.upload(mp,new Blob([JSON.stringify({...base,savedAt:new Date().toISOString(),companies:r.out})],{type:'application/json'}),mc&&mc.rev?{'.tag':'update',update:mc.rev}:{'.tag':'add'},{})}catch(err){if(['offline','auth'].includes(err.kind))throw err;ok=false;rec.error='companies not written: '+err.message}}}
+    if(ok){this._strayOk.add(st.path.toLowerCase());const to=st.path.replace(/\/[^/]+$/,'')+'/_registry_merged_'+today();
+     try{const mv=await Dbx.rpc('files/move_v2',{from_path:st.path,to_path:to,autorename:true},opt);rec.renamed=mv&&mv.metadata&&mv.metadata.path_display||to}catch(err){if(['offline','auth'].includes(err.kind))throw err;rec.error='rename failed: '+err.message}}
+    else rec.error=rec.error||'not merged completely – stray registry left in place'}
+   catch(e){if(['offline','auth'].includes(e.kind))throw e;rec.error=e.message||String(e)}}
+  this._strayOk=null;this._strayDone=true;if(log.strays.length){this.strayLog=log;try{localStorage.setItem('sap.strayLog',JSON.stringify(log))}catch(e){}console.warn('Stray registries merged',log)}
+  return log}});
 
 </script>
 </body>
