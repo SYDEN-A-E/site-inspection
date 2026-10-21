@@ -900,7 +900,7 @@ all(s){return this.tx(s,'readonly',st=>st.getAll())},keys(s){return this.tx(s,'r
 put(s,o){return this.tx(s,'readwrite',st=>st.put(o))},del(s,id){return this.tx(s,'readwrite',st=>st.delete(id))},clear(s){return this.tx(s,'readwrite',st=>st.clear())}};
 const S={projects:[],audits:[],items:[],drawings:[],templates:[],checklists:[],settings:{},companies:[]};
 const photoCache=new Map();
-async function loadAll(){for(const s of STORES){if(s==='photos'||s==='settings')continue;S[s]=await DB.all(s)}S.settings=(await DB.get('settings','main'))||{id:'main'};TOMBS.clear();for(const t of await DB.all('tombstones'))TOMBS.set(t.id,t);await Sync.loadMeta();await regLoad();await coSeed()}
+async function loadAll(){for(const s of STORES){if(s==='photos'||s==='settings')continue;S[s]=await DB.all(s)}S.settings=(await DB.get('settings','main'))||{id:'main'};TOMBS.clear();for(const t of await DB.all('tombstones'))TOMBS.set(t.id,t);await Sync.loadMeta();await regLoad();if(typeof discLoad==='function')await discLoad();await coSeed()}
 const TOMBS=new Map();
 /* Which sync bundle (Dropbox JSON file) a record lives in */
 function bundleOf(store,r){if(store==='settings')return'settings';if(store==='templates')return'templates';if(store==='projects')return'projects/'+r.id;
@@ -1057,15 +1057,15 @@ function viewHome(){
  const ps=S.projects.slice().sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
  const cards=ps.map(p=>{const R=projRole(p),it=visItems(p.id),cl=it.filter(i=>i.status==='Closed').length,au=S.audits.filter(a=>a.projectId===p.id).length,fc=teamOn(p)?flagCount(p.id):0,ps2=Sync.proj[p.id];
   return`<div class="card pcard ${R.mode==='none'?'pc-off':''}" data-act="go" data-href="#/project/${p.id}" data-search="${esc([p.name,p.reference,p.client,p.address,p.code,p.folderName].join(' ').toLowerCase())}">
-  <div class="pcard-top">${logoBox(p.logo,p.name)}<div style="min-width:0;flex:1"><h3>${esc(p.name)}</h3><div class="muted small">${esc(p.reference||'')}${p.reference&&p.client?' · ':''}${esc(p.client||'')}</div></div></div>
+  <div class="pcard-top">${logoBox(p.logo,p.name)}<div style="min-width:0;flex:1"><h3>${esc(p.name)}</h3><div class="muted small">${esc(p.reference||'')}${p.reference&&p.client?' · ':''}${esc(p.client||'')}</div>${p.code&&pfLinked(p)&&S.projects.some(x=>x!==p&&x.code&&pfCodeKey(x.code)===pfCodeKey(p.code))?`<div class="muted small brk pc-path">${esc(pfFolderLabel(p.dbx))}</div>`:''}</div></div>
   ${teamOn(p)||pfLinked(p)?`<div class="pc-badges">${roleBadgeHTML(p)}${pfLinked(p)?`<span class="badge pc-dbx" title="${esc(p.dbx.path)}">${ic('folder')} Project folder</span>`:''}${fc?`<span class="badge flag-b">⚑ ${fc} flagged to you</span>`:''}${ps2&&ps2.state!=='ok'?`<span class="badge st-Open" title="${esc(ps2.msg)}">${ps2.state==='readonly'?'View-only folder':'No folder access'}</span>`:''}</div>`:''}
   <div class="meta">${p.address?`<span>${ic('pin')}${esc(p.address)}</span>`:''}${p.date?`<span>${ic('cal')}${fmtDate(p.date)}</span>`:''}<span>${ic('clip')}${au} inspection${au===1?'':'s'}</span><span>${ic('list')}${it.length} issues · ${it.length-cl} open</span></div>
   <div class="progress" title="${cl}/${it.length} closed"><i style="width:${it.length?cl/it.length*100:0}%"></i></div></div>`}).join('');
  onAfter(()=>{const q=$('#home-q');if(q){q.oninput=()=>{UI.homeQ=q.value.toLowerCase();$$('.pcard').forEach(c=>c.style.display=c.dataset.search.includes(UI.homeQ)?'':'none')};if(UI.homeQ)q.oninput()}});
  return`<div class="page-head"><h1>Projects<span class="sub">${S.projects.length} project${S.projects.length===1?'':'s'} · ${S.audits.length} inspection${S.audits.length===1?"":"s"} · ${S.items.length} issue${S.items.length===1?"":"s"}</span></h1><div class="actions"><button class="btn primary" data-act="new-project">${ic('plus')} New project</button></div></div>
- ${Dbx.noCompany?`<div class="hint" id="no-company" role="alert" style="background:#fef2f2;border-color:#fecaca;color:#991b1b;margin:10px 0;font-weight:600">${esc(noCompanyMsg(Dbx.noCompany.email,Dbx.noCompany.unmounted))}</div>`:''}
+ ${discBarHTML()}
  ${(()=>{const v=visAllItems();return v.length?statsHTML(v)+tradeHTML(v):''})()}
- ${ps.length?`<div class="list-toolbar" style="margin-top:14px"><input type="search" id="home-q" placeholder="Search projects, clients, references…" value="${esc(UI.homeQ)}"></div><div class="grid cards">${cards}</div>`:emptyHTML('No projects yet','Create your first project, add an inspection and start logging issues with photos.',`<button class="btn primary" data-act="new-project">${ic('plus')} New project</button>`)}`}
+ ${ps.length?`<div class="list-toolbar" style="margin-top:14px"><input type="search" id="home-q" placeholder="Search projects, clients, references…" value="${esc(UI.homeQ)}"></div><div class="grid cards">${cards}</div>`:(Dbx.connected()?emptyHTML(DISC.busy?'Searching your Dropbox for projects…':'No projects yet',DISC_EMPTY,`<button class="btn" data-act="disc-addpath">Open / add a project by path</button> <button class="btn primary" data-act="new-project">${ic('plus')} New project</button>`):emptyHTML('No projects yet','Create your first project, add an inspection and start logging issues with photos.',`<button class="btn primary" data-act="new-project">${ic('plus')} New project</button>`))}`}
 
 function itemRows(items,qual){if(!items.length)return`<div class="empty">No issues match.</div>`;
  return items.map(i=>{const a=byId('audits',i.auditId),dr=i.pin&&byId('drawings',i.pin.drawingId);return`<a class="row" href="#/item/${i.id}"><div class="thumb">${i.photos&&i.photos.length?`<img data-photo="${i.photos[0]}" alt="">`:ic('camera')}</div>
@@ -1592,7 +1592,7 @@ const Dbx={loc:null,
   const bad=this.accountProblem(a);if(bad){await this.revoke();this.setTok(null);localStorage.setItem('sap.dbx.reauth','1');if(Welcome.fail(bad))return;render();alertBox(bad,'Company account required');return}
   const t=this.tok();t.account={name:a.name&&a.name.display_name,email:a.email,team:{id:a.team.id,name:a.team.name}};this.setTok(t);try{localStorage.setItem('sap.me.email',String(a.email||'').toLowerCase());localStorage.setItem('sap.me.name',t.account.name||'')}catch(e){}
   this.loc=null;if(typeof PF!=='undefined')PF.reset();localStorage.removeItem('sap.dbx.loc');await Sync.resetMeta();Sync.markAllDirty();Sync.setState('idle');const wf=Welcome.flow();if(wf)Welcome.set({stage:'connecting'});toast('Dropbox connected');render();
-  try{await this.ensureFolder()}catch(e){if(e.kind==='noaccess'){Sync.setState('noaccess',e.message);if(wf){Welcome.set({stage:'noaccess',msg:e.message});render();return}render();alertBox(e.message,'Company folder');return}}
+  try{await this.ensureFolder()}catch(e){if(e.kind!=='noaccess')throw e;this.loc=null} // optional: projects come from their own folders
   if(wf){Welcome.set({stage:'ok'});render()}Sync.now(true)},
  /* Incremental authorization: ask for one extra scope (e.g. sharing.read for shared-link import) on top of the granted ones,
     without resetting sync. The scope must be enabled in the Dropbox app console (Permissions) or Dropbox refuses it. */
@@ -1652,7 +1652,8 @@ const Dbx={loc:null,
  async ensureFolder(){if(!this.loc){try{this.loc=JSON.parse(localStorage.getItem('sap.dbx.loc')||'null')}catch(e){}}
   const prev=this.loc&&{root:this.loc.root,folder:this.loc.folder};let loc=null;
   const force=this._reloc;this._reloc=false;const sfid=companySfid();
-  if(sfid){if(this.loc&&!force&&this.loc.sfid===sfid&&await this.locValid(this.loc,sfid))loc=this.loc;
+  if(sfid){if(!this.loc&&!force&&this.noCompany&&Date.now()-this.noCompany.at<6e5)throw new DbxErr(noCompanyMsg(this.noCompany.email,this.noCompany.unmounted),'noaccess');
+   if(this.loc&&!force&&this.loc.sfid===sfid&&await this.locValid(this.loc,sfid))loc=this.loc;
    else if(this.loc)console.warn('Company folder',this.loc.folder,'is not the shared company folder',sfid,'– switching');
    if(!loc)loc=await this.resolveFolder();if(prev&&(prev.folder!==loc.folder||String(prev.root)!==String(loc.root)))this.locChanged(prev,loc);return loc}
   if(this.loc&&!force){try{const m=await this.rpc('files/get_metadata',{path:this.loc.folder},{root:this.loc.root});if(m['.tag']==='folder')loc=this.loc}catch(e){if(!['notfound','noaccess'].includes(e.kind))throw e}}
@@ -1748,7 +1749,11 @@ const Sync={state:'idle',msg:'',
   if(this._p){console.warn('Sync appeared stuck – restarting');this.lastErr={at:Date.now(),msg:'Previous sync was stuck for more than 5 minutes and was restarted'}}
   const g=this._gen=(this._gen||0)+1;this._pAt=Date.now();this._p=(async()=>{do{this._again=false;await this.run(manual)}while(this._again&&this._gen===g)})().finally(()=>{if(this._gen===g)this._p=null});return this._p},
  async run(manual){if(!navigator.onLine){this.setState('offline');return}this.setState('syncing');
-  try{await Dbx.ensureFolder();this._runLoc=new Map();try{await this.strayMerge()}catch(e){if(['offline','auth'].includes(e.kind))throw e;console.warn('Stray registry merge failed',e.message)}let changed=await this.pull();try{if(await this.coSync())changed=true}catch(e){if(['offline','auth'].includes(e.kind))throw e;console.warn('Companies sync failed',e.message)}if(await this.regRead())changed=true;if(await this.linkedPull())changed=true;if(await fixAllNumbers())changed=true;await this.push();await this.regWrite();if(await this.coSync())changed=true;try{await coLogoPrefetch();await coHealLogos()}catch(e){console.warn('Logo check failed',e.message)}await this.flushPdfQueue();await this.photos();await this.linkedPhotos();
+  /* the central company folder is OPTIONAL (legacy registry, companies.json, unlinked projects): projects are found in their own folders */
+  try{let co=true;try{await Dbx.ensureFolder()}catch(e){if(e.kind!=='noaccess')throw e;co=false;Dbx.loc=null}this.companyOk=co;this._runLoc=new Map();const soft=async(f,what)=>{try{return await f()}catch(e){if(['offline','auth'].includes(e.kind))throw e;console.warn(what+' failed',e.message);return false}};
+   let changed=false;if(co){await soft(()=>this.strayMerge(),'Stray registry merge');if(await this.pull())changed=true;if(await soft(()=>this.coSync(),'Companies sync'))changed=true;if(await soft(()=>this.regRead(),'Registry read'))changed=true}
+   if(await soft(()=>this.discover(),'Project search'))changed=true;
+   if(await this.linkedPull())changed=true;if(await fixAllNumbers())changed=true;if(await soft(()=>coSnapAll(),'Company snapshot'))changed=true;await this.push();if(co){await soft(()=>this.regWrite(),'Registry write');if(await soft(()=>this.coSync(),'Companies sync'))changed=true}try{await coLogoPrefetch();await coHealLogos()}catch(e){console.warn('Logo check failed',e.message)}await soft(()=>this.flushPdfQueue(),'Report upload');if(co)await this.photos();await this.linkedPhotos();
    SM.lastSync=Date.now();await DB.put('meta',SM);this.setState('ok');if(changed)safeRender();if(manual)toast('Dropbox sync complete',1400)}
   catch(e){console.warn('Sync failed:',e);this.lastErr={at:Date.now(),msg:e.message||String(e),kind:e.kind||'',stack:String(e.stack||'').slice(0,600)};await DB.put('meta',SM).catch(()=>{});
    if(e.kind==='offline'){this.setState('offline')}else if(e.kind==='noaccess'){this.setState('noaccess',e.message);if(manual)alertBox(e.message,'Company folder')}else if(e.kind==='auth'){this.setState('auth',e.message);if(manual)alertBox(e.message)}
@@ -1784,7 +1789,7 @@ const Sync={state:'idle',msg:'',
   const out={format:'sap-sync-1',key,savedAt:new Date().toISOString(),records:recs,tombstones:tombs};
   if(key.startsWith('projects/')&&!byId('projects',key.slice(9))){const t=TOMBS.get('projects:'+key.slice(9));if(t)out.deleted={deletedAt:t.deletedAt,deletedBy:t.by||''}} // project.json marked deleted (the folder and its files stay)
   return out},
- async push(){for(const key of Object.keys(SM.dirty)){const ver=SM.dirty[key];let T;
+ async push(){for(const key of Object.keys(SM.dirty)){const ver=SM.dirty[key];let T;if(this.companyOk===false&&!/^(projects|moved)\//.test(key))continue; // settings/templates wait for the company folder
   if(key.startsWith('moved/')){await this.pushMovedStub(key.slice(6));if(SM.dirty[key]===ver)delete SM.dirty[key];this.saveMeta();continue}
   try{T=await this.target(key)}catch(e){if(this.projErr(key.slice(9),e))continue;throw e}if(!T)continue;
   try{await this.pushTo(key,T)}catch(e){if(T.linked&&this.projErr(key.slice(9),e))continue;throw e}
@@ -1890,7 +1895,7 @@ Object.assign(ACT,{
  'welcome-skip':()=>{localStorage.setItem('sap.welcome.skip','1');Welcome.set(null);render();toast('Working offline – connect Dropbox any time in Settings',3000)},
  'welcome-done':()=>{clearTimeout(Welcome._t);Welcome.set(null);render()},
  'welcome-recheck':async()=>{const done=busy('Checking folder access…');Dbx.loc=null;localStorage.removeItem('sap.dbx.loc');
-  try{await Dbx.ensureFolder();Sync.setState('idle');Welcome.set({stage:'ok'});Sync.now(true)}catch(e){Welcome.set({stage:'noaccess',msg:e.kind==='noaccess'?e.message:'Could not check the folder: '+e.message})}finally{done()}render()},
+  try{try{await Dbx.ensureFolder()}catch(e){if(e.kind!=='noaccess')throw e}Sync.setState('idle');Welcome.set({stage:'ok'});Sync.now(true)}catch(e){Welcome.set({stage:'noaccess',msg:'Could not check Dropbox: '+e.message})}finally{done()}render()},
  'welcome-switch':async()=>{await Dbx.revoke();Dbx.setTok(null);Dbx.loc=null;localStorage.removeItem('sap.dbx.loc');await Sync.resetMeta();Sync.setState('idle');localStorage.setItem('sap.dbx.reauth','1');Welcome.set(null);return Dbx.connect(false,'#/')}});
 
 /* ===== Init ===== */
@@ -2397,8 +2402,16 @@ Object.assign(CHG,{
 
 /* ===== New project from a Dropbox project folder / link or move an existing project ===== */
 async function pfNewProject(){const pick=await pfPickDialog(null);if(!pick)return;const code=pick.pf.code;
- const ex=S.projects.find(p=>p.code&&pfCodeKey(p.code)===pfCodeKey(code));if(ex){await alertBox(`A project for ${ex.folderName||code} already exists in the app – opening it.`,'Project exists');location.hash='#/project/'+ex.id;return}
- let replaces='';{const dn=busy('Checking the project registry…');try{await Sync.regRead()}catch(e){}finally{dn()}}const reg0=regByCodeAny(code);if(reg0){const dn=busy('Checking the project registry…');let st;try{st=await regStale(reg0)}finally{dn()}
+ const A0=await pfAcct();const ex=S.projects.find(p=>p.code&&pfCodeKey(p.code)===pfCodeKey(code)&&p.dbx&&discSameDir(p.dbx.path,pick.path,A0));if(ex){await alertBox(`A project for ${ex.folderName||code} already exists in the app – opening it.`,'Project exists');location.hash='#/project/'+ex.id;return}
+ {const dn=busy('Checking your Dropbox for projects with this code…');try{await Sync.discover(true)}catch(e){}finally{dn()}
+  const dups=discByCode(code).filter(d=>d.r),same=dups.find(d=>discSameDir(discDir(d.path),pick.path,A0));
+  if(same){if(discOnTeam(same.r,myEmail())){const id=await discAdopt(same);Sync.now();location.hash='#/project/'+id;return}
+   return alertBox(`${pick.pf.folderName} is already set up in the app by ${same.r.ownerName||same.r.ownerEmail||'another user'}. Ask them to add you to the project team.`,'Project exists')}
+  if(dups.length){const v=await modal({title:'Project code already used',body:`<p>Project <b>${esc(code)}</b> already exists in ${dups.length===1?'another folder':'other folders'}:</p><ul>${dups.map(d=>`<li class="brk">${esc(discDir(d.path))}${discOnTeam(d.r,myEmail())?'':' <span class="muted">(you are not on its team)</span>'}</li>`).join('')}</ul><p>Open the existing project instead, or create a separate project in <b class="brk">${esc(pick.path)}</b>?</p>`,
+    buttons:[{label:'Cancel',value:null},{label:'Create anyway',value:'new'},{label:'Open existing',value:'open',cls:'primary'}]});if(!v)return;
+   if(v==='open'){const d=dups.find(x=>discOnTeam(x.r,myEmail()));if(!d)return alertBox(`You are not on the team of ${code}. Ask ${dups[0].r.ownerName||dups[0].r.ownerEmail||'its admin'} to add you.`,'Project exists');const id=await discAdopt(d);Sync.now();location.hash='#/project/'+id;return}}}
+ let replaces='';{const dn=busy('Checking the project registry…');try{await Sync.regRead()}catch(e){}finally{dn()}}let reg0=regByCodeAny(code);if(reg0&&reg0.dbx&&reg0.dbx.path&&!discSameDir(reg0.dbx.path,pick.path,A0))reg0=null; // same code in another folder: a separate project (warned above)
+ if(reg0){const dn=busy('Checking the project registry…');let st;try{st=await regStale(reg0)}finally{dn()}
   const who=reg0.ownerName||reg0.ownerEmail||reg0.prevOwnerEmail||'another user';
   if(!st){const onT=eqEmail(reg0.ownerEmail,myEmail())||(reg0.team||[]).some(m=>eqEmail(m.email,myEmail()));if(onT){await regAdopt(reg0);Sync.now();location.hash='#/project/'+reg0.id;return}
    return alertBox(`${reg0.folderName||code} is already set up in the app by ${who}. Ask them to add you to the project team.${reg0.ownerEmail?`\n\nRequest access: e-mail ${reg0.ownerEmail}`:''}`,'Project exists')}
@@ -2412,7 +2425,7 @@ async function pfNewProject(){const pick=await pfPickDialog(null);if(!pick)retur
   const T=b.tombstones||{},live=Object.entries(b.records||{}).find(([k])=>k.startsWith('projects:')&&!T[k]);
   if(live&&!b.deleted){const o=live[1];if(!(o.team||[]).some(m=>eqEmail(m.email,e0))&&!eqEmail(o.ownerEmail,e0))return alertBox(`${pick.pf.folderName} is already set up in the app by ${o.ownerName||o.ownerEmail}. Ask them to add you to the project team.${o.ownerEmail?`\n\nRequest access: e-mail ${o.ownerEmail}`:''}`,'Project exists')}
   else{const old=Object.keys(T).find(k=>k.startsWith('projects:'))||(live&&live[0]);if(old)replaces=old.slice(9)}}catch(x){}} // the folder still holds an earlier (deleted / unregistered) project
- const e=myEmail();let id=pfProjId(code);if(replaces||reg0||TOMBS.has('projects:'+id)||S.projects.some(x=>x.id===id))id=id+'_'+Date.now().toString(36); // recreated: new id + clean team, the old record stays tombstoned
+ const e=myEmail();let id=pfProjId(code);if(replaces||reg0||TOMBS.has('projects:'+id)||S.projects.some(x=>x.id===id)||discByCode(code).some(d=>d.pid===id))id=id+'_'+Date.now().toString(36); // recreated: new id + clean team, the old record stays tombstoned
  if(byId('projects',id)){location.hash='#/project/'+id;return}
  const p=await save('projects',{id,code,short:pf.short,folderName:pf.folderName,parentFolder:pf.parent||'',name:r.displayName||pfName(code,pf.short),displayName:r.displayName||'',reference:pf.keyed?'':code,client:r.client,address:r.address,date:r.date,companyId:r.companyId||CO_DEFAULT,logo:r.logo,notes:r.notes,
   dbx:link.dbx,...(replaces?{replaces}:{}),ownerEmail:e,ownerName:myName(),team:[{email:e,name:myName(),designation:r.myDesig||'ALL',role:'admin',addedAt:Date.now(),addedBy:e}]});
@@ -2552,7 +2565,7 @@ Object.assign(Sync,{proj:{},_pl:{},
    try{cur=JSON.parse(await(await Dbx.download(path)).blob.text())}catch(e){if(['offline','auth'].includes(e.kind))throw e;if(e.kind!=='notfound'){console.warn('Registry tombstone',e.message);continue}}
    if(cur&&cur.id===t.id&&!cur.deleted){try{await Dbx.upload(path,new Blob([JSON.stringify(this.regTombBody(t,cur))],{type:'application/json'}),{'.tag':'overwrite'})}catch(e){if(['offline','auth'].includes(e.kind))throw e;console.warn('Registry tombstone',e.message);continue}}
    SM.regTomb.splice(SM.regTomb.indexOf(t),1);if(SM.regHash)delete SM.regHash[t.id];this.saveMeta()}}, // entry already replaced by a new project (other id) → left alone
- async regWrite(){SM.regHash=SM.regHash||{};await this.regTombs();for(const p of S.projects){if(!pfLinked(p)||!p.code||p.stub||!projRole(p).admin)continue;const b=this.regBody(p);const h=JSON.stringify(b);if(SM.regHash[p.id]===h)continue;
+ async regWrite(){SM.regHash=SM.regHash||{};await this.regTombs();for(const p of S.projects){if(!pfLinked(p)||!p.code||p.stub||!projRole(p).admin)continue;{const o=regByCode(p.code);if(o&&o.id!==p.id&&!byId('projects',o.id)?.deleted&&o.dbx&&String(o.dbx.path||'').toLowerCase()!==String(p.dbx.path||'').toLowerCase())continue} /* the legacy registry is keyed by code: never overwrite another folder's project */const b=this.regBody(p);const h=JSON.stringify(b);if(SM.regHash[p.id]===h)continue;
   try{await Dbx.upload(this.regPath(p.code),new Blob([h],{type:'application/json'}),{'.tag':'overwrite'});SM.regHash[p.id]=h;this.saveMeta()}catch(e){if(['offline','auth'].includes(e.kind))throw e;console.warn('Registry write failed',e.message)}}
   /* old pending registry deletes (older app versions) → tombstone the entry instead (never files/delete) */
   for(const c of(SM.regDel||[]).slice()){const path=this.regPath(c);try{const cur=JSON.parse(await(await Dbx.download(path)).blob.text());
@@ -2602,13 +2615,13 @@ Object.assign(Sync,{proj:{},_pl:{},
 /* ---- registry → local projects (stubs until the project folder syncs) ---- */
 const REG=new Map();
 async function regLoad(){for(const m of await DB.all('meta'))if(m.id.startsWith('reg:')&&m.reg)REG.set(m.id.slice(4),m.reg)}
-async function regAdopt(r){const me=myEmail();if(!me||!r||!r.id)return false;
+async function regAdopt(r,opt={}){const me=myEmail();if(!me||!r||!r.id)return false;
  if(r.deleted){const cur=byId('projects',r.id);if(cur&&cur.stub&&(r.deletedAt||0)>=(cur.regAt||0)){await DB.del('projects',cur.id);S.projects=S.projects.filter(x=>x!==cur);return true}return false}
- if(SM&&SM.forgot&&SM.forgot[r.id]&&(r.updatedAt||0)<=SM.forgot[r.id])return false; /* removed from this device only */
- const onTeam=eqEmail(r.ownerEmail,me)||(r.team||[]).some(m=>eqEmail(m.email,me));if(!onTeam)return false;
+ if(SM&&SM.forgot&&SM.forgot[r.id]&&(r.updatedAt||0)<=SM.forgot[r.id]){if(!opt.force)return false;delete SM.forgot[r.id];Sync.saveMeta()} /* removed from this device only */
+ const onTeam=eqEmail(r.ownerEmail,me)||eqEmail(r.createdByEmail,me)||(r.team||[]).some(m=>eqEmail(m.email,me));if(!onTeam)return false;
  const t=TOMBS.get('projects:'+r.id);if(t&&t.deletedAt>=(r.updatedAt||0))return false;const cur=byId('projects',r.id);
  if(cur){if(cur.stub&&(r.updatedAt||0)>(cur.regAt||0)){Object.assign(cur,{name:r.name,code:r.code,short:r.short,folderName:r.folderName,dbx:r.dbx,team:r.team,ownerEmail:r.ownerEmail,ownerName:r.ownerName,regAt:r.updatedAt||0});await DB.put('projects',cur);return true}return false}
- if(S.projects.some(p=>p.code&&pfCodeKey(p.code)===pfCodeKey(r.code)))return false;
+ if(S.projects.some(p=>p.code&&pfCodeKey(p.code)===pfCodeKey(r.code)&&(!p.dbx||!r.dbx||(p.dbx.folderId&&p.dbx.folderId===r.dbx.folderId)||String(p.dbx.path||'').toLowerCase()===String(r.dbx.path||'').toLowerCase())))return false; // same code in ANOTHER folder is a separate project
  const stub={id:r.id,name:r.name,code:r.code,short:r.short,folderName:r.folderName,dbx:r.dbx,team:r.team,ownerEmail:r.ownerEmail,ownerName:r.ownerName,stub:true,regAt:r.updatedAt||0,createdAt:0,updatedAt:0};
  await DB.put('projects',stub);S.projects.push(stub);toast(`You were added to project “${r.name}”`,3000);return true}
 const regByCodeAny=code=>[...REG.values()].find(r=>pfCodeKey(r.code)===pfCodeKey(code));
@@ -2805,7 +2818,12 @@ const CO_ADDR=[['address','Address','textarea'],['poBox','PO Box'],['phone','Pho
 async function coSeed(){S.companies=S.companies||[];for(const c of[CO_SHARED_SEED,...CO_SEED.map(c=>({logo:'',address:'',poBox:'',phone:'',mobile:'',email:'',footer:'',...c}))]){if(byId('companies',c.id))continue;const r={...c,createdAt:1,updatedAt:1};await DB.put('companies',r);S.companies.push(r)}}
 const coShared=()=>byId('companies',CO_SHARED)||CO_SHARED_SEED;
 const coList=()=>S.companies.filter(c=>!c.shared&&!c.deleted).sort((a,b)=>(a.ord||99)-(b.ord||99)||a.name.localeCompare(b.name));
-function coOf(p){if(typeof p==='string')p=byId('projects',p);return(p&&p.companyId&&byId('companies',p.companyId))||byId('companies',CO_DEFAULT)||coList()[0]||null}
+function coOfLive(p){return(p&&p.companyId&&byId('companies',p.companyId))||byId('companies',CO_DEFAULT)||coList()[0]||null}
+/* the project's own copy of its company (project.json) first, then companies.json / the bundled defaults */
+function coOf(p){if(typeof p==='string')p=byId('projects',p);const live=coOfLive(p);const s=p&&p.coSnap;if(!s||!s.id||(p.companyId&&s.id!==p.companyId))return live;
+ const base=byId('companies',s.id)||live||{};const o={...base};for(const[k,v]of Object.entries(s))if(v!==''&&v!=null&&k!=='at'&&k!=='srcAt')o[k]=v;o.id=s.id;
+ if(base.updatedAt&&(base.updatedAt>(s.srcAt||0))&&base.updatedAt>1)return s.logo&&!coLogoField(base)&&!base.logoAt?{...base,logo:s.logo}:base; // edited on this device since the snapshot
+ return o}
 /* a company record without a logo uses the logo of another record with the same name (duplicates created on different devices) */
 const coNamesakeLogo=c=>{const n=String(c.name||'').trim().toLowerCase();if(!n)return'';const o=(S.companies||[]).find(x=>x!==c&&x.logo&&String(x.name||'').trim().toLowerCase()===n);return o?o.logo:''};
 /* Effective details: company values, else the shared address. Without any company record: the old Settings company. */
@@ -2869,7 +2887,7 @@ async function logoPng(src){if(!src)return'';if(LOGO_PNG.has(src))return LOGO_PN
  catch(e){console.warn('Logo could not be loaded:',e.message);out=''}LOGO_PNG.set(src,out);return out}
 /* fresh company records (logos) before a report: a device whose last sync stopped early may not have pulled companies.json yet */
 async function coFresh(force){if(typeof Dbx==='undefined'||!Dbx.connected()||!navigator.onLine||(!force&&Date.now()-(Sync._coAt||0)<120000))return;if(force&&SM)SM.coRev=null;
- try{await Promise.race([Sync.coSync(),new Promise(r=>setTimeout(r,force?15000:8000))]);await Promise.race([coLogoPrefetch(),new Promise(r=>setTimeout(r,8000))]);await coHealLogos()}catch(e){console.warn('Company refresh before report failed',e.message)}}
+ try{await Promise.race([Sync.coSync(),new Promise(r=>setTimeout(r,force?15000:8000))]);await Promise.race([coLogoPrefetch(),new Promise(r=>setTimeout(r,8000))]);await coHealLogos();if(typeof coSnapAll==='function'&&await coSnapAll())Sync.schedule(500)}catch(e){console.warn('Company refresh before report failed',e.message)}}
 async function pdfLogo(doc,data,x,y,bw,bh,alias,left){data=await logoPng(data);if(!data)throw new Error('logo not readable');const s=await imgSize(data);const sc=Math.min(bw/s.w,bh/s.h);const w=s.w*sc,h=s.h*sc;doc.addImage(data,imgFmt(data),left?x:x+(bw-w)/2,y+(bh-h)/2,w,h,alias,'FAST');return w}
 /* cover band: company logo (white box) top right, project / client logo under it. Returns the width reserved on the right. */
 async function pdfCoverLogos(doc,co,p,PW,M){const L=co.logo,C=p.logo&&p.logo!==L?p.logo:'';if(!L&&!C)return 0;doc.setFillColor(255,255,255);
@@ -3157,7 +3175,8 @@ async function diagCollect(){const L=[],t=Dbx.tok&&Dbx.tok(),acc=(t&&t.account)|
  L.push(`Allowed company domains: ${allowedDomains().join(', ')||'any'} · this account ${acc.email?(domainOk(acc.email)?'OK':'NOT a company account'):'?'}`);
  if(loc)L.push(`Dropbox root: ${loc.teamSpace?'team space':'personal/home'} · root namespace ${loc.rootNs||'–'} · home namespace ${loc.homeNs||'–'}${loc.homePath?' ('+loc.homePath+')':''}`);
  L.push(`Company shared folder id: ${companySfid()||'not set (legacy build)'}${loc&&loc.sfid?' · matched ('+(loc.how||'')+')':''}`);
- if(Dbx.noCompany)L.push('NO ACCESS: '+noCompanyMsg(Dbx.noCompany.email,Dbx.noCompany.unmounted));
+ if(Dbx.noCompany)L.push('Note: the central company folder '+DROPBOX_ROOT_FOLDER+' is not '+(Dbx.noCompany.unmounted?'added to':'shared with')+' this account – optional (legacy registry / company list); projects are found in their own folders.');
+ {const s=DISC.stats;L.push(s?`Project search (${fmtDT(s.at)}, ${s.ms} ms): ${s.hits} project.json hit(s), ${s.folders} _siteinspection folder(s), matched ${s.matched.length}${s.matched.length?' ['+s.matched.map(m=>m.code||m.name).join(', ')+']':''}, skipped ${s.skipped.length}${s.skipped.length?' ['+s.skipped.map(x=>(x.code||'?')+': '+x.why+' – '+x.path).join(' | ')+']':''}${s.err?' · search error: '+s.err:''}`:'Project search: not run yet');if(DISC.err)L.push('Last project search failed: '+DISC.err);const ap=discPaths();if(ap.length)L.push('Projects added by path: '+ap.map(x=>x.path).join(' | '))}
  {const g=Sync.strayLog;L.push(g&&g.strays&&g.strays.length?`Stray registries merged (${new Date(g.at).toLocaleString()}): `+g.strays.map(x=>`${x.path} → projects [${x.projects.map(p=>(p.code||p.file)+': '+p.why+(p.team&&p.team.length?' {'+p.team.join(', ')+'}':'')).join('; ')||'none'}], companies [${x.companies.join(', ')||'none'}], ${x.renamed?'renamed to '+x.renamed:'not renamed'}${x.error?' – '+x.error:''}`).join(' | '):'Stray registries: none found this session')}
  L.push(`Company folder: ${loc?loc.folder+' (found by '+(loc.how||'?')+(loc.root?', path root '+loc.root:'')+')':'not resolved'} · build folder ${DROPBOX_ROOT_FOLDER}`);
  if(Dbx.connected&&Dbx.connected()&&navigator.onLine){try{const m=await Dbx.rpc('files/get_metadata',{path:DROPBOX_ROOT_FOLDER},{root:loc&&loc.rootNs?String(loc.rootNs):null});L.push(`${DROPBOX_ROOT_FOLDER} at the team root: reachable (${m['.tag']})`)}catch(e){L.push(`${DROPBOX_ROOT_FOLDER} at the team root: NOT reachable (${e.kind||''}: ${e.message})`)}
@@ -3207,7 +3226,7 @@ function logoCacheGet(){if(_LC)return _LC;try{_LC=JSON.parse(localStorage.getIte
 function logoCachePut(id,src,name){if(!id||!isImgData(src))return;const m=logoCacheGet();if(m[id]&&m[id].src===src)return;m[id]={src,name:name||'',at:Date.now()};
  try{localStorage.setItem(LOGO_CACHE_KEY,JSON.stringify(m))}catch(e){try{localStorage.setItem(LOGO_CACHE_KEY,JSON.stringify({[id]:m[id]}))}catch(e2){}}}
 const nmEq=(a,b)=>{a=String(a||'').trim().toLowerCase();return!!a&&a===String(b||'').trim().toLowerCase()};
-function coProjectLogo(c){const n=new Map();for(const p of S.projects)if(!p.stub&&isImgData(p.logo)&&coOf(p)===c)n.set(p.logo,(n.get(p.logo)||0)+1);let best=null;for(const[src,k]of n)if(k>=2&&(!best||k>best.k))best={src,k};return best}
+function coProjectLogo(c){const n=new Map();for(const p of S.projects)if(!p.stub&&isImgData(p.logo)&&(coOf(p)||{}).id===c.id)n.set(p.logo,(n.get(p.logo)||0)+1);let best=null;for(const[src,k]of n)if(k>=2&&(!best||k>best.k))best={src,k};return best}
 function coLogoResolve(c){const st=S.settings||{},steps=[];
  if(!c)return isImgData(st.logo)?{src:st.logo,source:'Settings logo (no company record)',steps:['no company record']}:{src:'',source:'',steps:['no company record, no Settings logo']};
  const f=coLogoField(c);if(f)return{src:f.src,source:f.key==='logo'?'company record':`company record (field ${f.key})`,steps:[`company “${c.name}” found, logo in field '${f.key}'`]};
@@ -3321,6 +3340,97 @@ Object.assign(Sync,{
    catch(e){if(['offline','auth'].includes(e.kind))throw e;rec.error=e.message||String(e)}}
   this._strayOk=null;this._strayDone=true;if(log.strays.length){this.strayLog=log;try{localStorage.setItem('sap.strayLog',JSON.stringify(log))}catch(e){}console.warn('Stray registries merged',log)}
   return log}});
+
+/* ===== Projects are found in their OWN Dropbox folders =====
+ Every project folder holds <…>/Site Inspection/_siteinspection/project.json (format sap-sync-1) with the project record, its team and its
+ tombstones. A user sees a project when Dropbox lets them read that file and they are on its team (or created it). Discovery:
+  1 files/search_v2 for project.json (filename, .json, paged) and for _siteinspection folders (fallback), from the team root and My files
+  2 paths added on this device ("Open / add a project by path")
+  3 projects already on this device are re-read by Sync.linkedPull as before
+ Results are cached in IndexedDB (meta disc:<file id>) with the file rev, so unchanged files are never downloaded again. The central
+ /Site Inspection/_registry is an optional extra source (Sync.regRead, when the company folder is reachable). Search indexing can lag a few
+ minutes for brand-new folders – "add by path" covers that. */
+const DISC={map:new Map(),stats:null,busy:false,at:0,err:''};
+async function discLoad(){for(const m of await DB.all('meta'))if(m.id.startsWith('disc:')&&m.d)DISC.map.set(m.id.slice(5),m.d);try{DISC.stats=JSON.parse(localStorage.getItem('sap.disc.stats')||'null')}catch(e){}}
+const discPaths=()=>{try{return JSON.parse(localStorage.getItem('sap.disc.paths')||'[]')}catch(e){return[]}};
+const discDir=p=>String(p).replace(/\/_siteinspection\/project\.json$/i,'');
+async function discPool(list,n,f){let i=0;const w=async()=>{while(i<list.length){const x=list[i++];await f(x)}};await Promise.all(Array.from({length:Math.min(n,list.length)},w))}
+async function discSearchAll(arg,root,cb){let r=await Dbx.rpc('files/search_v2',arg,{root}),n=0;for(;;){for(const x of r.matches||[]){const m=x.metadata&&x.metadata.metadata;if(m)await cb(m)}if(!r.has_more||!r.cursor||++n>30)break;r=await Dbx.rpc('files/search/continue_v2',{cursor:r.cursor},{root})}}
+/* project.json → registry-style entry (the same shape regAdopt already understands) or a skip reason */
+function discEval(b){if(!b||b.format!=='sap-sync-1'||!/^projects\//.test(b.key||''))return{skip:'unreadable'};const pid=b.key.slice(9);const rec=(b.records||{})['projects:'+pid];const tomb=(b.tombstones||{})['projects:'+pid];
+ if(b.deleted||tomb||!rec||rec.deleted)return{skip:'deleted',pid,code:rec&&rec.code||'',deletedAt:tomb||b.deletedAt||Date.now()};
+ return{pid,code:rec.code||'',r:{format:'sap-registry-1',id:pid,code:rec.code||'',short:rec.short||'',folderName:rec.folderName||'',parentFolder:rec.parentFolder||'',name:rec.displayName||rec.name||rec.folderName||pid,dbx:rec.dbx||null,team:rec.team||[],ownerEmail:rec.ownerEmail||rec.createdByEmail||'',ownerName:rec.ownerName||rec.createdBy||'',createdByEmail:rec.createdByEmail||'',replaces:rec.replaces||'',updatedAt:rec.updatedAt||0,src:'search'}}}
+const discOnTeam=(r,me)=>!!me&&(eqEmail(r.ownerEmail,me)||eqEmail(r.createdByEmail,me)||(r.team||[]).some(m=>eqEmail(m&&m.email,me)));
+/* read one project.json (rev-cached) */
+async function discRead(h,prev){if(prev&&prev.rev&&prev.rev===h.rev&&(prev.r||prev.skip))return{...prev,path:h.path,root:h.root};
+ try{const{blob,meta}=await Dbx.download(h.path,{root:h.root});let b=null;try{b=JSON.parse(await blob.text())}catch(e){}return{rev:(meta&&meta.rev)||h.rev||'',path:h.path,root:h.root,...discEval(b)}}
+ catch(e){if(['offline','auth'].includes(e.kind))throw e;return{rev:h.rev||'',path:h.path,root:h.root,skip:e.kind==='notfound'?'gone':'unreadable'}}}
+const discDraw=()=>{const el=document.getElementById('disc-bar');if(el)el.outerHTML=discBarHTML()};
+Object.assign(Sync,{
+ async discover(force){if(!Dbx.connected())return false;if(!force&&Date.now()-DISC.at<60000)return false;if(this._disc)return this._disc;
+  this._disc=(async()=>{DISC.busy=true;DISC.err='';discDraw();const t0=Date.now();
+   try{const A=await pfAcct(),me=myEmail();const roots=A.teamSpace?[A.rootNs,null]:[null];const hits=new Map(),folders=[];let searched=0,searchErr='';
+    const add=(root,m)=>{if(!m||m['.tag']!=='file')return;const p=m.path_display||m.path_lower;if(!p||!/\/_siteinspection\/project\.json$/i.test(p))return;const k=m.id||p.toLowerCase();if(!hits.has(k))hits.set(k,{root,path:p,rev:m.rev||'',id:m.id||''})};
+    for(const root of roots){try{await discSearchAll({query:'project.json',options:{filename_only:true,file_extensions:['json'],max_results:1000}},root,m=>add(root,m));
+      await discSearchAll({query:'_siteinspection',options:{filename_only:true,file_categories:[{'.tag':'folder'}],max_results:1000}},root,m=>{if(m['.tag']==='folder'&&String(m.name).toLowerCase()==='_siteinspection')folders.push({root,path:m.path_display||m.path_lower})});searched++}
+     catch(e){if(['offline','auth'].includes(e.kind))throw e;searchErr=e.message}}
+    const have=new Set([...hits.values()].map(h=>h.path.toLowerCase()));
+    const direct=[...folders.map(f=>({root:f.root,path:f.path+'/project.json'})),...discPaths().map(x=>({root:x.root||null,path:x.path}))].filter(x=>x.path&&!have.has(x.path.toLowerCase()));
+    await discPool(direct,4,async x=>{try{const m=await Dbx.rpc('files/get_metadata',{path:x.path},{root:x.root});if(!have.has(String(m.path_display||x.path).toLowerCase())){have.add(String(m.path_display||x.path).toLowerCase());add(x.root,{...m,path_display:m.path_display||x.path})}}catch(e){if(['offline','auth'].includes(e.kind))throw e}});
+    const next=new Map();await discPool([...hits.entries()],4,async([k,h])=>{next.set(k,await discRead(h,DISC.map.get(k)))});
+    // the same project id in several places: keep the newest; projects replaced by a newer one are hidden
+    const live=[...next.values()].filter(d=>d.r);const replaced=new Set(live.map(d=>d.r.replaces).filter(Boolean));const best=new Map();
+    for(const d of live){const o=best.get(d.pid);if(!o||(d.r.updatedAt||0)>(o.r.updatedAt||0))best.set(d.pid,d)}
+    const st={at:Date.now(),ms:Date.now()-t0,hits:hits.size,searched,folders:folders.length,matched:[],skipped:[],err:searchErr};let changed=false;
+    for(const d of next.values()){const label=(d.code||d.pid||'')+' '+d.path;
+     if(d.skip){st.skipped.push({path:d.path,code:d.code||'',why:d.skip});if(d.skip==='deleted'&&d.pid&&await regAdopt({id:d.pid,deleted:true,deletedAt:d.deletedAt}))changed=true;continue}
+     if(best.get(d.pid)!==d){st.skipped.push({path:d.path,code:d.code,why:'older copy of the same project'});continue}
+     if(replaced.has(d.pid)){st.skipped.push({path:d.path,code:d.code,why:'replaced by a newer project'});continue}
+     const r={...d.r,dbx:d.r.dbx&&d.r.dbx.path?d.r.dbx:{space:d.root?'team':'home',path:discDir(d.path)}};
+     if(!discOnTeam(r,me)){st.skipped.push({path:d.path,code:d.code,why:'not on the team'});const cur=byId('projects',r.id);if(cur&&cur.stub&&cur.src==='search'){await DB.del('projects',cur.id);S.projects=S.projects.filter(x=>x!==cur);changed=true}continue}
+     // the folder this user just found: pfLoc starts there (no need to resolve the owner's path)
+     const dd=r.dbx;PLOC.set(r.id,{root:d.root?String(d.root):null,base:discDir(d.path),how:'search',key:[dd.path,dd.space,dd.nsId||'',dd.nsRel||''].join('|')});plocSave();
+     if(await regAdopt(r))changed=true;const cur=byId('projects',r.id);if(cur&&cur.stub&&!cur.src){cur.src='search';await DB.put('projects',cur)}
+     st.matched.push({path:d.path,code:d.code,name:r.name})}
+    for(const k of DISC.map.keys())if(!next.has(k))await DB.del('meta','disc:'+k).catch(()=>{});
+    for(const[k,d]of next){const o=DISC.map.get(k);if(!o||o.rev!==d.rev||o.path!==d.path)await DB.put('meta',{id:'disc:'+k,d})}
+    DISC.map=next;DISC.stats=st;DISC.at=Date.now();try{localStorage.setItem('sap.disc.stats',JSON.stringify(st))}catch(e){}
+    return changed}
+   catch(e){DISC.err=e.message||String(e);throw e}finally{DISC.busy=false;this._disc=null;discDraw()}})();
+  return this._disc}});
+/* entries (from the last search) with this code, any team – for the duplicate-project warning */
+function discByCode(code){const k=pfCodeKey(code);return[...DISC.map.values()].filter(d=>(d.r||d.pid)&&d.code&&pfCodeKey(d.code)===k&&d.skip!=='deleted')}
+/* "Open / add a project by path": a project folder, its Site Inspection data folder, or the _siteinspection folder itself */
+async function discAddPath(input){if(!Dbx.connected())return alertBox('Connect Dropbox in Settings first.','Add a project');const A=await pfAcct();const q=pfParse(input,A);if(!q||!q.path)return alertBox('Paste a Dropbox folder path, a dropbox.com link or a K:\\… path.','Add a project');
+ const{space,path}=pfCanon(q.space||'home',q.path,A);const roots=q.space?[pfRoot(space,A)]:(A.teamSpace?[null,A.rootNs]:[null]);const base=path.replace(/\/project\.json$/i,'').replace(/\/_siteinspection$/i,'');
+ const done=busy('Looking for the project in that folder…');let h=null;
+ try{for(const root of roots){for(const c of[base+'/_siteinspection/project.json',base+'/Site Inspection/_siteinspection/project.json']){try{const m=await Dbx.rpc('files/get_metadata',{path:c},{root});if(m['.tag']==='file'){h={root,path:m.path_display||c,rev:m.rev,id:m.id};break}}catch(e){if(['offline','auth'].includes(e.kind))throw e}}if(h)break;
+   try{await discSearchAll({query:'project.json',options:{path:base,filename_only:true,file_extensions:['json'],max_results:50}},root,m=>{if(!h&&m['.tag']==='file'&&/\/_siteinspection\/project\.json$/i.test(m.path_display||''))h={root,path:m.path_display,rev:m.rev,id:m.id}})}catch(e){if(['offline','auth'].includes(e.kind))throw e}if(h)break}
+  if(!h)return alertBox('No Site Inspection project was found in '+base+'. Check the path and that the folder is shared with you in Dropbox.','Add a project');
+  const d=await discRead(h,null);if(d.skip)return alertBox(d.skip==='deleted'?'That project was deleted.':'The project file in that folder could not be read.','Add a project');
+  if(!discOnTeam(d.r,myEmail()))return alertBox(`You are not on the team of “${d.r.name}”. Ask ${d.r.ownerName||d.r.ownerEmail||'the project admin'} to add ${myEmail()} to the project team.`,'Add a project');
+  const l=discPaths().filter(x=>x.path.toLowerCase()!==h.path.toLowerCase());l.push({root:h.root,path:h.path});localStorage.setItem('sap.disc.paths',JSON.stringify(l.slice(-50)));
+  DISC.at=0;DISC.map.set(h.id||h.path.toLowerCase(),d);const id=await discAdopt(d);location.hash='#/project/'+id;Sync.now();return id}
+ finally{done()}}
+const discNorm=(x,A)=>{x=String(x||'').toLowerCase().replace(/\/+$/,'');const hp=A&&A.homePath?'/'+A.homePath.toLowerCase():'';return hp&&x.startsWith(hp+'/')?x.slice(hp.length):x};
+const discSameDir=(a,b,A)=>{if(!a||!b)return false;a=discNorm(a,A);b=discNorm(b,A);if(a===b)return true;const fa=pfFind(a),fb=pfFind(b);return!!(fa&&fb&&fa.path&&fa.path.toLowerCase()===String(fb.path||'').toLowerCase())}; // same data folder or same project folder
+/* adopt a discovered project on this device (the user asked for it: add by path / open existing) */
+async function discAdopt(d){const r={...d.r,dbx:d.r.dbx&&d.r.dbx.path?d.r.dbx:{space:d.root?'team':'home',path:discDir(d.path)}};const dd=r.dbx;
+ PLOC.set(r.id,{root:d.root?String(d.root):null,base:discDir(d.path),how:'path',key:[dd.path,dd.space,dd.nsId||'',dd.nsRel||''].join('|')});plocSave();await regAdopt(r,{force:true});return r.id}
+function discBarHTML(){if(typeof Dbx==='undefined'||!Dbx.connected())return'<div id="disc-bar"></div>';const s=DISC.stats;
+ return`<div id="disc-bar" class="disc-bar muted small" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0">${DISC.busy?'<span class="disc-busy">⟳ Searching your Dropbox for projects…</span>':s?`<span>Projects found in your Dropbox: ${s.matched.length} · last search ${fmtDT(s.at)}</span>`:''}${DISC.err?`<span style="color:#b91c1c">Search failed: ${esc(DISC.err)}</span>`:''}<span style="flex:1"></span><button class="btn sm" data-act="disc-refresh">Refresh projects</button><button class="btn sm" data-act="disc-addpath">Open / add a project by path</button></div>`}
+const DISC_EMPTY="Projects appear when the project's folder is shared with you in Dropbox and you're on the team. New projects can take a few minutes to appear. Or add one by path.";
+Object.assign(ACT,{'disc-refresh':async()=>{try{if(await Sync.discover(true))safeRender();await Sync.now(true)}catch(e){alertBox('Project search failed: '+e.message)}},
+ 'disc-addpath':async()=>{const r=await formModal('Open / add a project by path',[{k:'path',label:'Dropbox path of the project folder (or K:\\… path, or dropbox.com link)',req:true,full:true}],{},{ok:'Open'});if(!r)return;try{await discAddPath(r.path)}catch(e){alertBox('Could not open that folder: '+e.message,'Add a project')}}});
+
+/* ===== Company snapshot inside each project (members without companies.json still get name, address and logo) ===== */
+function coSnapOf(c){const i=coInfo(c);const o={id:c.id,name:i.name,color:i.color||'',logo:isImgData(i.logo)?i.logo:'',website:i.website||'',footer:i.footer||'',srcAt:c.updatedAt||0};CO_ADDR.forEach(([k])=>o[k]=i[k]||'');return o}
+async function coSnapAll(){let n=0;for(const p of S.projects){if(p.stub||!pfLinked(p)||!projRole(p).admin||projRole(p).ro)continue;const id=p.companyId||CO_DEFAULT;const c=(S.companies||[]).find(x=>x.id===id&&!x.deleted);if(!c)continue;
+  const old=p.coSnap&&p.coSnap.id===id?p.coSnap:null;
+  if(!(Sync.companyOk||(c.updatedAt||0)>1)&&old)continue; // only bundled defaults on this device: keep the project's snapshot
+  const s=coSnapOf(c);if(old&&!s.logo&&old.logo&&!(c.logoAt&&c.logoAt>(old.at||0)))s.logo=old.logo; // never drop a logo unless it was removed in Settings
+  const cmp=o=>JSON.stringify({...o,at:0,srcAt:0});if(old&&cmp(old)===cmp(s))continue;s.at=Date.now();p.coSnap=s;await save('projects',p);n++}
+ return n>0}
 
 </script>
 </body>
