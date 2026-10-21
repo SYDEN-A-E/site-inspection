@@ -845,6 +845,10 @@ const TAXONOMY={
   'Fixings, anchors and embedments':['Missing / loose anchor','Insufficient edge distance','Corroded fixing','Unapproved fixing'],
   'Openings, cores and penetrations':['Unapproved core / opening','Opening not trimmed / reinforced','Damage around penetration'],
   'Water ingress and durability':['Water leak through structure','Efflorescence','Damp / wet concrete']}};
+const SUB_OTHER='__subother';
+/* custom subcategories per project + trade = the custom values already used on that project's issues (they live in project.json via the issues,
+   so teammates see them; no new field, no project-record writes that could clobber team / role edits) */
+const projSubsCustom=(p,t)=>{if(!p||!t)return[];const fx=taxSubs(t),seen=new Map();for(const i of (typeof projItems==='function'?projItems(p.id):[])){const v=String(i.subcategory||'').trim();if(i.category===t&&v&&!fx.includes(v)&&!seen.has(v.toLowerCase()))seen.set(v.toLowerCase(),v)}return[...seen.values()].sort((x,y)=>x.localeCompare(y))};
 const taxTrades=()=>Object.keys(TAXONOMY);
 const taxSubs=t=>t&&TAXONOMY[t]?Object.keys(TAXONOMY[t]):[];
 const taxDefects=(t,s)=>t&&s&&TAXONOMY[t]&&TAXONOMY[t][s]?[...TAXONOMY[t][s].filter(x=>x!==TAX_OTHER),TAX_OTHER]:[];
@@ -1088,7 +1092,8 @@ function tradeHTML(items,scopeKey){if(!items.some(i=>i.category))return'';const 
 function clsFieldsHTML(i,all){const pr=byId('projects',i.projectId),R=projRole(pr),rs=!!R.trades,T=tradesFor(i.projectId),inTax=taxTrades().includes(i.category),custom=!rs&&UI.clsOther===i.id,subs=taxSubs(i.category),defs=taxDefects(i.category,i.subcategory);
  const opt=(v,t,sl)=>`<option value="${esc(v)}" ${sl?'selected':''}>${esc(t)}</option>`,others=(rs?[i.category]:uniq([...cats(),...all.map(x=>x.category),i.category])).filter(x=>x&&!T.includes(x));
  let h=`<label><span>Trade${rs?` <small class="muted">(your trades)</small>`:''}</span><select name="category" data-change="cls-field">${opt('','— Select trade —',!i.category&&!custom)}${T.map(t=>opt(t,t,!custom&&t===i.category)).join('')}${others.length?`<optgroup label="Other trades">${others.map(t=>opt(t,t,!custom&&t===i.category)).join('')}</optgroup>`:''}${rs?'':opt('__other','Other (type a trade)…',custom)}${teamOn(pr)&&!R.ro?opt('__flag','⚑ Another trade – flag it…',false):''}</select>${custom?`<input name="categoryText" data-change="cls-field" placeholder="Type trade name" autocomplete="off">`:''}</label>`;
- if(inTax)h+=`<label><span>Subcategory</span><select name="subcategory" data-change="cls-field">${opt('','— Select subcategory —',!i.subcategory)}${subs.map(x=>opt(x,x,x===i.subcategory)).join('')}${i.subcategory&&!subs.includes(i.subcategory)?opt(i.subcategory,i.subcategory,true):''}</select></label>`;
+ if(inTax){const sOth=UI.subOther===i.id||(!!i.subcategory&&!subs.includes(i.subcategory)),cs=projSubsCustom(pr,i.category).filter(x=>x!==i.subcategory);
+  h+=`<label><span>Subcategory</span><select name="subcategory" data-change="cls-field">${opt('','— Select subcategory —',!i.subcategory&&!sOth)}${subs.map(x=>opt(x,x,!sOth&&x===i.subcategory)).join('')}${cs.length?`<optgroup label="Added by the team">${cs.map(x=>opt(x,x,!sOth&&x===i.subcategory)).join('')}</optgroup>`:''}${opt(SUB_OTHER,'Other (custom)…',sOth)}</select>${sOth?`<input name="subText" data-change="cls-field" value="${esc(i.subcategory||'')}" placeholder="Type a subcategory" autocomplete="off">`:''}</label>`}
  else if(i.category)h+=`<label><span>Subcategory</span><input name="subcategory" data-change="cls-field" value="${esc(i.subcategory||'')}" placeholder="Optional"></label>`;
  else h+=`<label><span>Subcategory</span><select name="subcategory" disabled><option>Select a trade first</option></select></label>`;
  if(defs.length){const isO=!!i.defectType&&!defs.slice(0,-1).includes(i.defectType);h+=`<label><span>Defect type</span><select name="defectType" data-change="cls-field">${opt('','— Select defect type —',!i.defectType)}${defs.map(x=>opt(x,x,x===TAX_OTHER?isO:x===i.defectType)).join('')}</select>${isO?`<input name="defectText" data-change="cls-field" value="${esc(i.defectType===TAX_OTHER?'':i.defectType)}" placeholder="Describe the defect" autocomplete="off">`:''}</label>`}
@@ -1296,7 +1301,9 @@ const CHG={
   if(k==='category'&&v==='__flag'){clsRefresh(it);return flagDialog(it,{fromNew:true})}
   if(k==='category'&&v&&restricted(it.projectId)&&!tradesFor(it.projectId).includes(v))return clsRefresh(it);
   if(k==='category'||k==='categoryText'){UI.clsOther=null;if(v===(it.category||''))return clsRefresh(it);it.category=v;it.subcategory='';it.defectType=''}
-  else if(k==='subcategory'){if(v===(it.subcategory||''))return;it.subcategory=v;it.defectType=''}
+  else if(k==='subcategory'&&v===SUB_OTHER){UI.subOther=it.id;return clsRefresh(it,'subText')}
+  else if(k==='subcategory'){UI.subOther=null;if(v===(it.subcategory||''))return clsRefresh(it);it.subcategory=v;it.defectType=''}
+  else if(k==='subText'){if(v===(it.subcategory||''))return;UI.subOther=v?null:it.id;it.subcategory=v;it.defectType=''}
   else if(k==='defectType')it.defectType=v;else if(k==='defectText')it.defectType=v||(taxDefects(it.category,it.subcategory).length?TAX_OTHER:'');else return;
   await save('items',it);toast('Saved',1000);clsRefresh(it,k==='defectType'&&v===TAX_OTHER?'defectText':null)},
  'cl-comment':async el=>{const c=byId('checklists',el.dataset.cl);c.questions.find(x=>x.id===el.dataset.q).comment=el.value;await save('checklists',c);toast('Saved',900)},
@@ -1842,7 +1849,7 @@ function safeRender(){const a=document.activeElement;if(a&&a.closest&&a.closest(
  updatedAt → synced). Runs after a delete / move and after every sync merge on every device (and at start-up), so devices converge on the same
  numbering and an unchanged number is never re-written (no ping-pong). New issues take max+1 in their inspection. Older project-wide numbers
  are migrated by the same pass (order kept). */
-function numOrder(a,b){return(a.number||1e9)-(b.number||1e9)||(a.createdAt||0)-(b.createdAt||0)||(a.id<b.id?-1:a.id>b.id?1:0)}
+function numOrder(a,b){const ad=i=>{const x=i.auditId&&typeof byId==='function'&&byId('audits',i.auditId);return x?String(x.date||''):''};return(a.number||1e9)-(b.number||1e9)||(a.auditId!==b.auditId?ad(a).localeCompare(ad(b)):0)||(a.createdAt||0)-(b.createdAt||0)||(a.id<b.id?-1:a.id>b.id?1:0)}
 async function fixNumbers(pid){const p=byId('projects',pid);if(!p||p.stub)return 0;const R=projRole(p);if(R.mode==='none'||R.ro)return 0;
  const by=new Map();for(const i of projItems(pid)){const g=i.auditId+'|'+tradePfx(i.category);if(!by.has(g))by.set(g,[]);by.get(g).push(i)}let n=0; // one gap-free sequence per (inspection, trade prefix)
  for(const its of by.values()){its.sort(numOrder);for(const[k,i]of its.entries())if(i.number!==k+1){i.number=k+1;await save('items',i,{keepBy:true});n++}}
@@ -1975,7 +1982,7 @@ const AI={
   const r=await modal({title:'AI suggestion',body,buttons:[{label:'Dismiss',value:null},...(oos&&teamOn(byId('projects',it.projectId))?[{label:'Flag to '+(TRADE_TAG[oos]||oos),value:'flag'}]:[]),{label:'Apply',value:'apply',cls:'primary'}],collect:(el,v)=>v&&({v,cls:!!el.querySelector('[name=cls]:checked'),title:!!el.querySelector('[name=title]:checked'),desc:!!el.querySelector('[name=desc]:checked')})});
   if(!r)return false;const cur=byId('items',it.id)||it;let n=0;
   if(r.v==='flag'){if(r.title&&s.title&&!cur.title)cur.title=s.title;if(r.desc&&s.description&&!cur.description)cur.description=s.description;await save('items',cur);const fd=flagDialog(cur);setTimeout(()=>{const sel=$('.modal-back:last-child [name=toTrade]');if(sel){sel.value=oos;sel.dispatchEvent(new Event('change'))}},50);return fd}
-  if(r.cls&&cls.length){cur.category=s.trade;cur.subcategory=okSub?s.subcategory:'';cur.defectType=okSub?s.defectType:'';UI.clsOther=null;n++}
+  if(r.cls&&cls.length){cur.category=s.trade;cur.subcategory=okSub?s.subcategory:'';cur.defectType=okSub?s.defectType:'';UI.clsOther=null;UI.subOther=null;n++}
   if(r.title&&s.title){cur.title=s.title;n++}
   if(r.desc&&s.description){cur.description=cur.description?cur.description.replace(/\s+$/,'')+'\n\n'+s.description:s.description;n++}
   if(!n)return false;await save('items',cur);toast('AI suggestion applied');render();return true},
