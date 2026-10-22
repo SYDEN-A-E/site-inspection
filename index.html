@@ -934,7 +934,7 @@ const auditItems=aid=>S.items.filter(i=>i.auditId===aid);
  consolidated report, project CSV, flag links, drawings with pins from several inspections) they are qualified with the inspection code
  I<k> = position of the inspection in its project by creation (I1, I2, …): "I2-#3". */
 let _AS={arr:null,n:-1,m:null};
-function auditSeq(aid){if(_AS.arr!==S.audits||_AS.n!==S.audits.length){const m=new Map(),by=new Map();for(const a of S.audits.slice().sort((x,y)=>(x.createdAt||0)-(y.createdAt||0)||(x.id<y.id?-1:x.id>y.id?1:0))){const k=(by.get(a.projectId)||0)+1;by.set(a.projectId,k);m.set(a.id,k)}_AS={arr:S.audits,n:S.audits.length,m}}return _AS.m.get(aid)||0}
+function auditSeq(aid){if(_AS.arr!==S.audits||_AS.n!==S.audits.length){const m=new Map(),by=new Map();for(const a of S.audits.slice().sort((x,y)=>(x.createdAt||0)-(y.createdAt||0)||String(x.date||'').localeCompare(String(y.date||''))||(x.id<y.id?-1:x.id>y.id?1:0))){const k=(by.get(a.projectId)||0)+1;by.set(a.projectId,k);m.set(a.id,k)}_AS={arr:S.audits,n:S.audits.length,m}}return _AS.m.get(aid)||0}
 const insCode=aid=>'I'+(auditSeq(aid)||'?');
 /* Issue numbers are per (inspection, trade prefix): MEC-001, ELE-001 … restart in every inspection. Plumbing / HVAC / MEP → MEC; anything
  that matches no trade (or no trade set) → GEN. Cross-inspection views qualify the number: I2-MEC-001. */
@@ -1113,7 +1113,7 @@ function viewProject(id,params={}){const p=byId('projects',id);if(!p)return notF
  const head=`${crumbs([['Projects','#/'],[p.name]])}
  <div class="card pad" style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">${logoBox(p.logo,p.name).replace('plogo','plogo" style="width:72px;height:72px;font-size:24px')}
  <div style="flex:1;min-width:220px"><h1 style="margin:0 0 6px;font-size:23px">${esc(p.name)}</h1>${teamOn(p)?`<div class="role-line">${roleBadgeHTML(p)} <span class="muted small">${esc(roleScopeText(p))}</span></div>`:''}<dl class="kv">${[['Project folder',p.folderName&&p.folderName!==p.name?p.folderName:''],['Reference',p.reference],['Client',p.client],['Address',p.address],['Date',fmtDate(p.date)],['Prepared by',p.company],['Last edited',p.updatedBy?fmtDT(p.updatedAt)+' by '+p.updatedBy:'']].filter(x=>x[1]).map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${p.notes?`<p class="muted small" style="white-space:pre-wrap;margin:8px 0 0">${esc(p.notes)}</p>`:''}</div>
- <div class="actions">${R.admin?`<button class="btn" data-act="edit-project" data-id="${id}">${ic('edit')}<span class="lbl">Edit</span></button>`:''}<button class="btn" data-act="report" data-type="project" data-id="${id}">${ic('file')}<span class="lbl">Report</span></button>${teamOn(p)&&R.mode!=='none'?`<button class="btn primary" data-act="con-report" data-id="${id}">${ic('file')}<span class="lbl">${R.admin?'Consolidated report':'My trade report'}</span></button>`:''}${R.admin?`<button class="btn danger" data-act="del-project" data-id="${id}" title="Delete project">${ic('trash')}</button>`:teamOn(p)?`<button class="btn" data-act="forget-project" data-id="${id}" title="Remove from this device">${ic('trash')}</button>`:''}</div></div>
+ <div class="actions">${R.admin?`<button class="btn" data-act="edit-project" data-id="${id}">${ic('edit')}<span class="lbl">Edit</span></button><button class="btn" data-act="repair-open" data-id="${id}" title="Check issues with mixed authorship / photos">${ic('layers')}<span class="lbl">Check issues</span></button>`:''}<button class="btn" data-act="report" data-type="project" data-id="${id}">${ic('file')}<span class="lbl">Report</span></button>${teamOn(p)&&R.mode!=='none'?`<button class="btn primary" data-act="con-report" data-id="${id}">${ic('file')}<span class="lbl">${R.admin?'Consolidated report':'My trade report'}</span></button>`:''}${R.admin?`<button class="btn danger" data-act="del-project" data-id="${id}" title="Delete project">${ic('trash')}</button>`:teamOn(p)?`<button class="btn" data-act="forget-project" data-id="${id}" title="Remove from this device">${ic('trash')}</button>`:''}</div></div>
  ${ps&&ps.state!=='ok'?`<div class="hint pf-status" style="margin-top:12px">${esc(ps.msg)}</div>`:p.stub?`<div class="hint pf-status" style="margin-top:12px">You were added to this project – its data downloads from the project's Dropbox folder on the next sync.</div>`:''}
  ${team?`<div class="tabs"><a href="#/project/${id}" class="${tab!=='team'?'on':''}">Overview</a><a href="#/project/${id}?tab=team" class="${tab==='team'?'on':''}">Team${teamOn(p)?' ('+p.team.length+')':''}</a></div>`:''}`;
  if(R.mode==='none')return head+`<div class="card pad">You're not on this project's team, so its issues are hidden. Ask ${esc((teamAdmins(p)[0]||{}).name||p.ownerName||'the project admin')} to add you.</div>`;
@@ -3506,6 +3506,43 @@ async function draftWarn(id){const i=byId('items',id);if(!i||!isDraftItem(i)||!i
   buttons:[{label:'Edit anyway',value:'edit'},{label:'Start my own issue',value:'own',cls:'primary'}]});
  if(v==='own'){const it=await newItem(i.auditId);location.hash='#/item/'+it.id}}
 const itemByHTML=i=>{const p=byId('projects',i.projectId);if(!p||!teamOn(p)||!i.createdByEmail||eqEmail(i.createdByEmail,myEmail()))return'';const n=esc(String(i.createdBy||i.createdByEmail).split(' ')[0]);return isDraftItem(i)?`<span class="by draft" title="Blank draft started by ${esc(i.createdBy||i.createdByEmail)}">Draft · ${n}</span>`:`<span class="by" title="Created by ${esc(i.createdBy||i.createdByEmail)}">${ic('user')}by ${n}</span>`};
+/* ===== Phase 3 – G: admin repair tool ("Check issues")
+ Flags issues whose authorship or photos look mixed (created by one person, edited / photos added by another) and lets a project admin move
+ selected photos into a NEW issue after an explicit confirmation. The original issue only loses those photos from its list (recorded as a removal,
+ not a delete); photo files are never deleted (Dropbox files are at most renamed for the new issue number). Nothing happens without the admin's OK. */
+const phTime=id=>{const t=parseInt(String(id||'').slice(0,8),36);return t>1.5e12&&t<4e12?t:0};
+function repairScan(pid){const out=[];const who=(e,n)=>n||e||'?';
+ for(const i of projItems(pid)){if(isDraftItem(i))continue;const why=[];const ce=String(i.createdByEmail||'').toLowerCase();
+  if(ce&&i.updatedByEmail&&!eqEmail(i.updatedByEmail,ce))why.push(`Created by ${who(ce,i.createdBy)}, last edited by ${who(i.updatedByEmail,i.updatedBy)}`);
+  const pm=i.pm||{},others=(i.photos||[]).filter(id=>pm[id]&&pm[id].by&&ce&&!eqEmail(pm[id].by,ce)&&pm[id].by!==i.createdBy);
+  if(others.length)why.push(`${others.length} photo${others.length>1?'s':''} added by ${[...new Set(others.map(id=>pm[id].by))].join(', ')}`);
+  const late=(i.photos||[]).filter(id=>phTime(id)&&i.createdAt&&phTime(id)-i.createdAt>20*60e3);
+  if(why.length&&late.length)why.push(`${late.length} photo${late.length>1?'s':''} taken more than 20 min after the issue was created`);
+  if(why.length)out.push({i,why})}
+ return out.sort((a,b)=>(a.i.createdAt||0)-(b.i.createdAt||0))}
+function repairHTML(list){if(!list.length)return`<p class="muted">No issues with mixed authorship or photos found.</p>`;
+ return`<p class="small muted">Issues created by one person but edited or photographed by another. Tick photos that belong to a separate issue and split them off. Nothing is deleted.</p>`+list.map(({i,why})=>`<div class="rp-item card pad" data-id="${i.id}" style="margin:10px 0"><b><span class="num">${issueRef(i)}</span> ${esc(i.title||'Untitled issue')}</b>
+  <ul class="small" style="margin:4px 0 8px 18px">${why.map(w=>`<li>${esc(w)}</li>`).join('')}</ul>
+  <div class="rp-ph" style="display:flex;flex-wrap:wrap;gap:8px">${(i.photos||[]).map(id=>{const pm=(i.pm||{})[id]||{},t=phTime(id);return`<label style="width:96px;font-size:11px;line-height:1.3"><img data-rp="${id}" style="width:96px;height:72px;object-fit:cover;border-radius:6px;background:#eef2f7;display:block"><input type="checkbox" data-ph="${id}"> ${t?new Date(t).toLocaleString([], {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):''}${pm.by?`<br><span class="muted">by ${esc(String(pm.by).split('@')[0])}</span>`:''}</label>`}).join('')||'<span class="muted small">No photos</span>'}</div>
+  ${(i.photos||[]).length?`<button class="btn sm" data-rp-split="${i.id}" style="margin-top:8px">Split selected photos into a new issue…</button>`:''}</div>`).join('')}
+async function repairOpen(pid){const p=byId('projects',pid);if(!p||!projRole(p).admin)return alertBox('Only a project admin can repair issues.');
+ for(;;){const list=repairScan(pid);let pick=null;
+  await modal({title:'Check issues – mixed authorship / photos',wide:true,body:`<div id="rp-root">${repairHTML(list)}</div>`,buttons:[{label:'Close',value:null}],
+   onOpen:(el,close)=>{el.querySelectorAll('img[data-rp]').forEach(async im=>{const ph=await getPhoto(im.dataset.rp);if(ph)im.src=ph.data});
+    el.querySelectorAll('[data-rp-split]').forEach(bt=>bt.addEventListener('click',()=>{const box=bt.closest('.rp-item');const ids=[...box.querySelectorAll('input[data-ph]:checked')].map(x=>x.dataset.ph);
+     if(!ids.length)return toast('Tick the photos to move first');pick={id:bt.dataset.rpSplit,ids};close('split')}))}});
+  if(!pick)return;const it=byId('items',pick.id);if(!it)return;const all=(it.photos||[]).length;
+  if(pick.ids.length>=all){await alertBox('Leave at least one photo on the original issue (or edit the issue directly).','Split issue');continue}
+  const ok=await confirmBox(`Move ${pick.ids.length} photo${pick.ids.length>1?'s':''} from ${issueRef(it)} “${it.title||'Untitled issue'}” into a NEW issue in the same inspection?\n\nThe original keeps its other ${all-pick.ids.length} photo${all-pick.ids.length>1?'s':''} and all its text. Nothing is deleted – you can review and rename the new issue afterwards.`,'Split','Split issue');
+  if(!ok)continue;await repairSplit(pick.id,pick.ids);toast('Split done – new issue created')}}
+async function repairSplit(id,ids){const it=byId('items',id);if(!it)return null;const mv=ids.filter(x=>(it.photos||[]).includes(x));if(!mv.length)return null;
+ const by=mv.map(x=>((it.pm||{})[x]||{}).by).find(Boolean);
+ const n=await newItem(it.auditId,{category:it.category||'',subcategory:it.subcategory||'',defectType:it.defectType||'',location:it.location||'',phase:it.phase||'',priority:it.priority||'Medium'});
+ n.title=`${it.title||'Untitled issue'} (split)`;n.photos=mv.slice();const src={};for(const x of mv)if(it.photoSrc&&it.photoSrc[x])src[x]=it.photoSrc[x];if(Object.keys(src).length)n.photoSrc=src;
+ n.splitFrom=it.id;n.description=by?`Photos split from ${issueRef(it)} – added by ${by}.`:`Photos split from ${issueRef(it)}.`;await save('items',n);
+ const cur=byId('items',id);cur.photos=(cur.photos||[]).filter(x=>!mv.includes(x));if(cur.photoSrc)for(const x of mv)delete cur.photoSrc[x];cur.splitTo=[...(cur.splitTo||[]),n.id];await save('items',cur);
+ if(typeof cropCache!=='undefined')cropCache.clear();safeRender&&safeRender();return n.id}
+Object.assign(ACT,{'repair-open':el=>repairOpen(el.dataset.id)});
 
 </script>
 </body>
