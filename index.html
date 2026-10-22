@@ -161,6 +161,7 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12px}
 .cls-grid label input{margin-top:4px}
 .cls-grid select:disabled{color:var(--mut);background:#f3f5f8}
 .meta .defect{color:#b45309;font-weight:600}
+.meta .by{color:var(--muted,#64748b)}.meta .by.draft{background:#fef3c7;color:#92400e;border-radius:5px;padding:0 6px;font-weight:600}
 .trades{margin:10px 0 6px;padding:12px 14px}
 .trades-h{font-size:12.5px;font-weight:600;text-transform:uppercase;color:var(--mut);letter-spacing:.03em;margin-bottom:6px}
 .trade-row{display:grid;grid-template-columns:minmax(110px,220px) 1fr auto;gap:10px;align-items:center;padding:6px 0;font-size:14px;border-top:1px solid var(--bd)}
@@ -904,7 +905,7 @@ all(s){return this.tx(s,'readonly',st=>st.getAll())},keys(s){return this.tx(s,'r
 put(s,o){return this.tx(s,'readwrite',st=>st.put(o))},del(s,id){return this.tx(s,'readwrite',st=>st.delete(id))},clear(s){return this.tx(s,'readwrite',st=>st.clear())}};
 const S={projects:[],audits:[],items:[],drawings:[],templates:[],checklists:[],settings:{},companies:[]};
 const photoCache=new Map();
-async function loadAll(){for(const s of STORES){if(s==='photos'||s==='settings')continue;S[s]=await DB.all(s)}S.settings=(await DB.get('settings','main'))||{id:'main'};TOMBS.clear();for(const t of await DB.all('tombstones'))TOMBS.set(t.id,t);await Sync.loadMeta();await regLoad();if(typeof discLoad==='function')await discLoad();await coSeed()}
+async function loadAll(){for(const s of STORES){if(s==='photos'||s==='settings')continue;S[s]=await DB.all(s)}S.settings=(await DB.get('settings','main'))||{id:'main'};TOMBS.clear();for(const t of await DB.all('tombstones'))TOMBS.set(t.id,t);if(typeof itBase==='function')S.items.forEach(itBase);await Sync.loadMeta();await regLoad();if(typeof discLoad==='function')await discLoad();await coSeed()}
 const TOMBS=new Map();
 /* Which sync bundle (Dropbox JSON file) a record lives in */
 function bundleOf(store,r){if(store==='settings')return'settings';if(store==='templates')return'templates';if(store==='projects')return'projects/'+r.id;
@@ -914,8 +915,12 @@ const BY_STORES=['projects','audits','items','checklists','drawings'];
 function currentUser(){const t=typeof Dbx!=='undefined'&&Dbx.tok();const a=t&&t.account;return a?{name:a.name||a.email||'',email:a.email||''}:{name:localStorage.getItem('sap.inspector')||'',email:''}}
 async function save(store,o,opt={}){let renum=null;if(store==='items'&&!opt.raw&&o.createdAt&&o.auditId){const prev=await DB.get('items',o.id);if(prev&&prev.auditId===o.auditId&&tradePfx(prev.category)!==tradePfx(o.category)){o.number=nextNumber(o.auditId,o.category,o.id);renum=o.projectId}}
  if(store==='items'&&!opt.raw){if(o.status==='Closed'){if(!o.closedAt){const prev=o.createdAt?await DB.get('items',o.id):null;if(!prev||prev.status!=='Closed')o.closedAt=Date.now()}}else if(o.closedAt)delete o.closedAt} /* closing date recorded from now on (old closed issues: reports fall back to updatedAt) */
- const isNew=!o.createdAt;o.updatedAt=Math.max(Date.now(),(o.updatedAt||0)+1);if(isNew)o.createdAt=o.updatedAt;
- if(BY_STORES.includes(store)&&!opt.keepBy){const w=currentUser();if(w.name){o.updatedBy=w.name;o.updatedByEmail=w.email;if(isNew){o.createdBy=w.name;o.createdByEmail=w.email}}}await DB.put(store,o);const a=S[store];const i=a.findIndex(x=>x.id===o.id);if(i>=0)a[i]=o;else a.push(o);const b=bundleOf(store,o);if(b)Sync.markDirty(b);if(renum)await fixNumbers(renum);return o}
+ let IP=null;if(store==='items'&&typeof itemPrepSave==='function'){IP=await itemPrepSave(o,opt);if(IP&&IP.renum){const r=IP.rec;await DB.put('items',r);Object.keys(o).forEach(k=>{if(!(k in r))delete o[k]});Object.assign(o,r);itBase(o);const a=S.items,i=a.findIndex(x=>x.id===o.id);if(i>=0)a[i]=o;else a.push(o);const b=bundleOf(store,o);if(b)Sync.markDirty(b);return o}
+  if(IP&&IP.rec!==o){const r=IP.rec;Object.keys(o).forEach(k=>{if(!(k in r))delete o[k]});Object.assign(o,r)}}
+ const isNew=!o.createdAt;o.updatedAt=Math.max(Date.now(),(o.updatedAt||0)+1,IP&&IP.prev?(IP.prev.updatedAt||0)+1:0);if(isNew)o.createdAt=o.updatedAt;
+ if(BY_STORES.includes(store)&&!opt.keepBy){const w=currentUser();if(w.name){o.updatedBy=w.name;o.updatedByEmail=w.email;if(isNew){o.createdBy=w.name;o.createdByEmail=w.email}}}
+ if(IP)itemStamp(o,IP.prev,o.updatedAt,(currentUser().email||currentUser().name||''));
+ await DB.put(store,o);const a=S[store];const i=a.findIndex(x=>x.id===o.id);if(i>=0)a[i]=o;else a.push(o);if(store==='items')itBase(o);const b=bundleOf(store,o);if(b)Sync.markDirty(b);if(renum)await fixNumbers(renum);return o}
 async function remove(store,id){const rec=S[store].find(x=>x.id===id);const b=rec&&bundleOf(store,rec);await DB.del(store,id);S[store]=S[store].filter(x=>x.id!==id);if(b)await addTomb(store+':'+id,b)}
 async function saveSettings(){S.settings.id='main';S.settings.updatedAt=Date.now();await DB.put('settings',S.settings);Sync.markDirty('settings')}
 async function getPhoto(id){if(!id)return null;if(photoCache.has(id))return photoCache.get(id);let p=await DB.get('photos',id);if(!p&&Dbx.connected()&&!TOMBS.has('photos:'+id))p=await Sync.lazyPhoto(id);if(p)photoCache.set(id,p);return p}
@@ -1073,7 +1078,7 @@ function viewHome(){
 
 function itemRows(items,qual){if(!items.length)return`<div class="empty">No issues match.</div>`;
  return items.map(i=>{const a=byId('audits',i.auditId),dr=i.pin&&byId('drawings',i.pin.drawingId);return`<a class="row" href="#/item/${i.id}"><div class="thumb">${i.photos&&i.photos.length?`<img data-photo="${i.photos[0]}" alt="">`:ic('camera')}</div>
- <div class="grow"><div class="t"><span class="num">${qual?issueRef(i):issueNo(i)}</span>${esc(i.title||'Untitled issue')}</div><div class="meta">${i.location?`<span>${ic('pin')}${esc(i.location)}</span>`:''}${i.category?`<span class="cls" title="${esc(clsParts(i).join(' › '))}">${esc([i.category,subShort(i.subcategory)].filter(Boolean).join(' › '))}</span>`:''}${i.defectType?`<span class="defect">${esc(i.defectType)}</span>`:''}${i.assignee?`<span>${ic('user')}${esc(i.assignee)}</span>`:''}${i.dueDate?`<span class="${isOver(i)?'over':''}">${ic('cal')}${fmtDate(i.dueDate)}${isOver(i)?' (overdue)':''}</span>`:''}${UI.list&&UI.list.showAudit&&a?`<span>${ic('clip')}${esc(a.title)}</span>`:''}${i.photos&&i.photos.length>1?`<span>${ic('image')}${i.photos.length}</span>`:''}${i.flag?flagBadgeHTML(i):''}</div></div>
+ <div class="grow"><div class="t"><span class="num">${qual?issueRef(i):issueNo(i)}</span>${esc(i.title||'Untitled issue')}</div><div class="meta">${i.location?`<span>${ic('pin')}${esc(i.location)}</span>`:''}${i.category?`<span class="cls" title="${esc(clsParts(i).join(' › '))}">${esc([i.category,subShort(i.subcategory)].filter(Boolean).join(' › '))}</span>`:''}${i.defectType?`<span class="defect">${esc(i.defectType)}</span>`:''}${i.assignee?`<span>${ic('user')}${esc(i.assignee)}</span>`:''}${i.dueDate?`<span class="${isOver(i)?'over':''}">${ic('cal')}${fmtDate(i.dueDate)}${isOver(i)?' (overdue)':''}</span>`:''}${UI.list&&UI.list.showAudit&&a?`<span>${ic('clip')}${esc(a.title)}</span>`:''}${i.photos&&i.photos.length>1?`<span>${ic('image')}${i.photos.length}</span>`:''}${i.flag?flagBadgeHTML(i):''}${itemByHTML(i)}</div></div>
  <div class="ir-badges">${dr?`<span title="Pinned on ${esc(dr.name)}" style="color:var(--acc)">${ic('map')}</span>`:''}${phBadge(i.phase)}${prBadge(i.priority)}${stBadge(i.status)}</div></a>`}).join('')}
 function applyFilter(items,f){const q=(f.q||'').toLowerCase();let r=items.filter(i=>(!q||[i.title,i.description,i.location,i.category,i.subcategory,i.defectType,i.assignee,issueNo(i),issueRef(i)].join(' ').toLowerCase().includes(q))&&(!f.status||(f.status==='overdue'?isOver(i):f.status==='notclosed'?i.status!=='Closed':i.status===f.status))&&(!f.priority||i.priority===f.priority)&&(!f.phase||(f.phase==='none'?!i.phase:i.phase===f.phase))&&(!f.category||i.category===f.category)&&(!f.subcategory||i.subcategory===f.subcategory)&&(!f.defectType||i.defectType===f.defectType)&&(!f.assignee||i.assignee===f.assignee)&&(!f.location||i.location===f.location)&&(!f.flag||(f.flag==='tome'?flaggedToMe(i):f.flag==='byme'?!!i.flag&&eqEmail(i.flag.byEmail,myEmail()):f.flag==='returned'?!!i.flag&&i.flag.status==='returned':!!i.flag)));
  const s={number:(a,b)=>numCmp(a,b),newest:(a,b)=>b.createdAt-a.createdAt,updated:(a,b)=>b.updatedAt-a.updatedAt,priority:(a,b)=>PRIO_RANK[a.priority]-PRIO_RANK[b.priority]||numCmp(a,b),phase:(a,b)=>PHASE_RANK(a.phase)-PHASE_RANK(b.phase)||PRIO_RANK[a.priority]-PRIO_RANK[b.priority]||numCmp(a,b),status:(a,b)=>STATUSES.indexOf(a.status)-STATUSES.indexOf(b.status)||numCmp(a,b),due:(a,b)=>(a.dueDate||'9999').localeCompare(b.dueDate||'9999'),location:(a,b)=>(a.location||'').localeCompare(b.location||'')||numCmp(a,b)}[f.sort||'number'];return r.sort(s)}
@@ -1135,7 +1140,7 @@ function checklistsHTML(a,cls){return`<div class="section" style="margin-top:0">
  return`<div class="card" style="margin-bottom:16px;overflow:hidden"><div class="pad" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--bd)"><div style="flex:1;min-width:200px"><b style="font-size:16px">${esc(c.name)}</b><div class="meta"><span>${y+n+na}/${qs.length} answered</span><span class="c-closed">${y} yes</span><span class="c-open">${n} no</span><span>${na} N/A</span>${score!=null?`<span><b>Score ${score}%</b></span>`:''}</div></div><button class="btn sm danger" data-act="del-checklist" data-id="${c.id}">${ic('trash')} Remove</button></div>
  ${c.questions.map(q=>q.section?`<div class="cl-sec">${esc(q.text)}</div>`:`<div class="cl-q"><div class="qt">${esc(q.text)}</div><div class="qa"><div class="seg">${[['yes','Yes'],['no','No'],['na','N/A']].map(([v,t])=>`<button class="${v} ${q.answer===v?'on':''}" data-act="cl-ans" data-cl="${c.id}" data-q="${q.id}" data-v="${v}">${t}</button>`).join('')}</div><input placeholder="Comment" value="${esc(q.comment||'')}" data-change="cl-comment" data-cl="${c.id}" data-q="${q.id}">${q.answer==='no'?(q.itemId&&byId('items',q.itemId)?`<a class="btn sm" href="#/item/${q.itemId}">Issue ${issueRef(byId('items',q.itemId),c.auditId)}</a>`:`<button class="btn sm" data-act="cl-issue" data-cl="${c.id}" data-q="${q.id}">${ic('plus')} Raise issue</button>`):''}</div></div>`).join('')}</div>`}).join(''):emptyHTML('No checklists','Add a reusable checklist template (Yes / No / N/A questions) to this inspection.')}`}
 
-function viewItem(id){const i=byId('items',id);if(!i)return notFound();const a=byId('audits',i.auditId),p=byId('projects',i.projectId);const all=projItems(p.id);const R=projRole(p);
+function viewItem(id){const i=byId('items',id);if(!i)return notFound();UI.after.push(()=>draftWarn(id));const a=byId('audits',i.auditId),p=byId('projects',i.projectId);const all=projItems(p.id);const R=projRole(p);
  if(!canSeeItem(i,R))return`${crumbs([['Projects','#/'],[p.name,'#/project/'+p.id],['Issue '+issueNo(i)]])}${emptyHTML('Another trade',`Issue ${issueNo(i)} belongs to ${i.category||'another trade'} and is not visible for your designation. Flag issues to other trades from your own issues.`,`<a class="btn" href="#/project/${p.id}">Back to project</a>`)}`;
  const ed=canEditItem(i,R);
  const dl=(id,vals)=>`<datalist id="${id}">${uniq(vals).map(v=>`<option value="${esc(v)}">`).join('')}</datalist>`;
@@ -1786,12 +1791,14 @@ const Sync={state:'idle',msg:'',
   for(const[k,rec]of Object.entries(b.records||{})){const i=k.indexOf(':'),store=k.slice(0,i),id=k.slice(i+1);if(!SYNC_STORES.includes(store)||!rec||rec.id!==id||!own(store,rec))continue;
    const t=TOMBS.get(k);if(t&&t.deletedAt>=(rec.updatedAt||0))continue;
    if(store==='settings'){if((rec.updatedAt||0)>(S.settings.updatedAt||0)){S.settings={...rec,id:'main'};await DB.put('settings',S.settings);changed=true}continue}
-   const arr=S[store],j=arr.findIndex(x=>x.id===id);if(j<0||(rec.updatedAt||0)>(arr[j].updatedAt||0)){await DB.put(store,rec);if(j<0)arr.push(rec);else arr[j]=rec;changed=true}}
+   const arr=S[store],j=arr.findIndex(x=>x.id===id);
+   if(store==='items'){const L=await DB.get('items',id);const M=L?itemMerge(L,rec):rec;if(!L||JSON.stringify(M)!==JSON.stringify(L)){const nw=JSON.parse(JSON.stringify(M));await DB.put('items',nw);itBase(nw);if(j<0)arr.push(nw);else arr[j]=nw;changed=true}continue}
+   if(j<0||(rec.updatedAt||0)>(arr[j].updatedAt||0)){await DB.put(store,rec);if(j<0)arr.push(rec);else arr[j]=rec;changed=true}}
   if(changed){cropCache.clear();if(key.startsWith('projects/'))await fixNumbers(key.slice(9))}return changed},
  build(key){const recs={},tombs={};const add=(s,r)=>{recs[s+':'+r.id]=r};
   if(key==='settings')add('settings',{...S.settings,id:'main'});else if(key==='templates')S.templates.forEach(t=>add('templates',t));
   else{const pid=key.slice(9);const p=byId('projects',pid);if(p)add('projects',p);const aids=new Set();
-   S.audits.filter(a=>a.projectId===pid).forEach(a=>{aids.add(a.id);add('audits',a)});S.items.filter(i=>i.projectId===pid).forEach(i=>add('items',i));
+   S.audits.filter(a=>a.projectId===pid).forEach(a=>{aids.add(a.id);add('audits',a)});S.items.filter(i=>i.projectId===pid&&!isDraftItem(i)).forEach(i=>add('items',i));
    S.drawings.filter(d=>d.projectId===pid).forEach(d=>add('drawings',d));S.checklists.filter(c=>c.projectId===pid||aids.has(c.auditId)).forEach(c=>add('checklists',c))}
   for(const t of TOMBS.values())if(t.bundle===key)tombs[t.id]=t.deletedAt;
   const out={format:'sap-sync-1',key,savedAt:new Date().toISOString(),records:recs,tombstones:tombs};
@@ -1852,7 +1859,7 @@ function safeRender(){const a=document.activeElement;if(a&&a.closest&&a.closest(
 function numOrder(a,b){const ad=i=>{const x=i.auditId&&typeof byId==='function'&&byId('audits',i.auditId);return x?String(x.date||''):''};return(a.number||1e9)-(b.number||1e9)||(a.auditId!==b.auditId?ad(a).localeCompare(ad(b)):0)||(a.createdAt||0)-(b.createdAt||0)||(a.id<b.id?-1:a.id>b.id?1:0)}
 async function fixNumbers(pid){const p=byId('projects',pid);if(!p||p.stub)return 0;const R=projRole(p);if(R.mode==='none'||R.ro)return 0;
  const by=new Map();for(const i of projItems(pid)){const g=i.auditId+'|'+tradePfx(i.category);if(!by.has(g))by.set(g,[]);by.get(g).push(i)}let n=0; // one gap-free sequence per (inspection, trade prefix)
- for(const its of by.values()){its.sort(numOrder);for(const[k,i]of its.entries())if(i.number!==k+1){i.number=k+1;await save('items',i,{keepBy:true});n++}}
+ for(const its of by.values()){its.sort(numOrder);for(const[k,i]of its.entries())if(i.number!==k+1){i.number=k+1;await save('items',i,{keepBy:true,renum:true});n++}}
  if(n)cropCache.clear();return n}
 async function fixAllNumbers(){let n=0;for(const p of S.projects.slice())n+=await fixNumbers(p.id);return n}
 const DBX_LOGO='<svg viewBox="0 0 24 24" width="22" height="22" fill="#0061fe"><path d="M6 2 0 6l6 4 6-4zm12 0-6 4 6 4 6-4zM0 14l6 4 6-4-6-4zm18-4-6 4 6 4 6-4zM6 19.3l6 4 6-4-6-4z"/></svg>';
@@ -3440,6 +3447,65 @@ async function coSnapAll(){let n=0;for(const p of S.projects){if(p.stub||!pfLink
   const s=coSnapOf(c);if(old&&!s.logo&&old.logo&&!(c.logoAt&&c.logoAt>(old.at||0)))s.logo=old.logo; // never drop a logo unless it was removed in Settings
   const cmp=o=>JSON.stringify({...o,at:0,srcAt:0});if(old&&cmp(old)===cmp(s))continue;s.at=Date.now();p.coSnap=s;await save('projects',p);n++}
  return n>0}
+
+/* ===== Concurrent editing safety (issues) =====
+ Phase 1 – A: save('items',o) never writes a stale copy over newer data: when `o` is not the current object (a sync replaced it while e.g. photos were
+   being resized or the AI was thinking), only the fields this copy actually changed (vs. the state it was read in) are re-applied onto the latest version.
+ Phase 1 – B: renumbering only touches `number` (own field timestamp), never the edit time / editor / other fields.
+ Phase 1 – F: brand-new blank issues stay on this device until they have a title, trade, photo, description or pin (not written to project.json);
+   opening someone else's blank draft asks first.
+ Phase 2 – C: per-field merge. item.ft = {field: time}, item.ftAt = updatedAt of the last save made by this app version, item.pm = {photoId:{a:added,r:removed,by}}.
+   A record whose updatedAt ≠ ftAt was saved by an older app version (whole-record save) → all its fields count as edited at its updatedAt (old behaviour).
+   Photos: union of both sides minus photo tombstones and photos removed from this issue later than they were added (pm.r ≥ pm.a). Photo files are never deleted by a merge.
+*/
+const ITEM_BASE=new WeakMap(); // object → JSON of the stored state it was read in
+const IT_META=new Set(['id','ft','ftAt','pm','updatedAt','updatedBy','updatedByEmail','createdAt','createdBy','createdByEmail','photos','photoSrc']);
+const itJ=v=>JSON.stringify(v===undefined?null:v);
+function itBase(o){if(o&&o.id)ITEM_BASE.set(o,JSON.stringify(o));return o}
+const itLegacy=X=>!!X&&(X.updatedAt||0)!==(X.ftAt||0); // saved by an older app version (or never field-stamped)
+const itTs=(X,f)=>{const t=(X.ft&&X.ft[f])||0;return itLegacy(X)?Math.max(t,X.updatedAt||0):t};
+const itFields=(...xs)=>[...new Set(xs.flatMap(x=>x?Object.keys(x):[]))].filter(f=>!IT_META.has(f));
+const isDraftItem=i=>!!i&&!String(i.title||'').trim()&&!i.category&&!(i.photos||[]).length&&!String(i.description||'').trim()&&!i.pin&&!i.flag;
+/* re-apply what `mine` changed since `base` onto `latest` */
+function itemRebase(latest,base,mine){const r=JSON.parse(JSON.stringify(latest));if(!base)return Object.assign(r,mine,{photos:mine.photos});
+ for(const f of new Set([...Object.keys(base),...Object.keys(mine)])){if(['id','ft','ftAt','pm','updatedAt','updatedBy','updatedByEmail','createdAt','createdBy','createdByEmail'].includes(f))continue;if(itJ(mine[f])===itJ(base[f]))continue;
+  if(f==='photos'){const b=base.photos||[],m=mine.photos||[],add=m.filter(x=>!b.includes(x)),rm=new Set(b.filter(x=>!m.includes(x)));r.photos=[...(r.photos||[]).filter(x=>!rm.has(x)),...add.filter(x=>!(r.photos||[]).includes(x))]}
+  else if(f==='photoSrc')r.photoSrc={...(r.photoSrc||{}),...(mine.photoSrc||{})};
+  else if(mine[f]===undefined)delete r[f];else r[f]=JSON.parse(JSON.stringify(mine[f]))}
+ return r}
+/* field stamps for a save: rec = record about to be stored, prev = stored version (or null) */
+function itemStamp(rec,prev,now,by){rec.ft={...((prev&&prev.ft)||{}),...(rec.ft||{})};rec.pm={...((prev&&prev.pm)||{}),...(rec.pm||{})};
+ for(const f of itFields(rec,prev))if(!prev||itJ(rec[f])!==itJ(prev[f]))rec.ft[f]=now;
+ const was=new Set((prev&&prev.photos)||[]),is=new Set(rec.photos||[]);
+ for(const id of is)if(!was.has(id)||!rec.pm[id]){const o=rec.pm[id]||{};if(!was.has(id)||!o.a)rec.pm[id]={...o,a:now,...(by?{by}:o.by?{by:o.by}:{})}}
+ for(const id of was)if(!is.has(id))rec.pm[id]={...(rec.pm[id]||{}),r:now};
+ if(!prev||itJ(rec.photos)!==itJ(prev.photos))rec.ft.photos=now;rec.ftAt=rec.updatedAt}
+/* per-field merge of the local stored record L and an incoming record R (either may come from an older app version) */
+function itemMerge(L,R){if(!L)return R;if(!R)return L;const M=JSON.parse(JSON.stringify(L));M.ft={...(L.ft||{})};
+ for(const f of itFields(L,R)){const tl=itTs(L,f),tr=itTs(R,f);const useR=tr>tl||(tr===tl&&itJ(R[f])!==itJ(L[f])&&itJ(R[f])>itJ(L[f]));
+  if(useR){if(R[f]===undefined)delete M[f];else M[f]=JSON.parse(JSON.stringify(R[f]))}M.ft[f]=Math.max(tl,tr)}
+ // photos: union minus removals / tombstones
+ const pm={},put=(id,o)=>{const c=pm[id]||{};pm[id]={a:Math.max(c.a||0,o.a||0),r:Math.max(c.r||0,o.r||0),...((o.a||0)>=(c.a||0)&&o.by?{by:o.by}:c.by?{by:c.by}:{})}};
+ for(const X of[L,R]){for(const[id,o]of Object.entries(X.pm||{}))put(id,o);const t=itLegacy(X)?(X.updatedAt||0):((X.ft&&X.ft.photos)||X.updatedAt||0);for(const id of X.photos||[])if(!(X.pm&&X.pm[id]&&X.pm[id].a))put(id,{a:t})}
+ const alive=id=>!TOMBS.has('photos:'+id)&&pm[id]&&(pm[id].a||0)>(pm[id].r||0);
+ const first=itTs(R,'photos')>itTs(L,'photos')?R:L,second=first===R?L:R;const order=[...(first.photos||[]),...(second.photos||[]),...Object.keys(pm).sort((x,y)=>pm[x].a-pm[y].a)];
+ M.photos=[...new Set(order)].filter(alive);M.pm=pm;M.ft.photos=Math.max(itTs(L,'photos'),itTs(R,'photos'));
+ const src={...(L.photoSrc||{}),...(R.photoSrc||{})};for(const k of Object.keys(src))if(!M.photos.includes(k))delete src[k];if(Object.keys(src).length)M.photoSrc=src;else delete M.photoSrc;
+ const newer=(R.updatedAt||0)>(L.updatedAt||0)?R:L;M.updatedAt=Math.max(L.updatedAt||0,R.updatedAt||0);for(const k of['updatedBy','updatedByEmail'])if(newer[k]!==undefined)M[k]=newer[k];
+ const older=(R.createdAt||Infinity)<(L.createdAt||Infinity)?R:L;for(const k of['createdAt','createdBy','createdByEmail'])if(older[k]!==undefined)M[k]=older[k];
+ M.ftAt=M.updatedAt;return M}
+/* save() hook for items: returns the record to store */
+async function itemPrepSave(o,opt){const prev=await DB.get('items',o.id);const cur=S.items.find(x=>x.id===o.id);let rec=o;
+ if(opt.renum){if(!prev)return null;rec=JSON.parse(JSON.stringify(prev));rec.number=o.number;rec.ft={...(rec.ft||{}),number:Math.max(Date.now(),((prev.ft&&prev.ft.number)||0)+1)};if(!itLegacy(prev))rec.ftAt=rec.updatedAt;return{rec,renum:true}}
+ if(cur&&cur!==o&&prev){const b=ITEM_BASE.get(o);rec=itemRebase(prev,b?JSON.parse(b):null,o)}
+ return{rec,prev}}
+/* ---- F: someone else's blank draft ---- */
+async function draftWarn(id){const i=byId('items',id);if(!i||!isDraftItem(i)||!i.createdByEmail||eqEmail(i.createdByEmail,myEmail())||(UI.draftOk||(UI.draftOk=new Set())).has(id))return;UI.draftOk.add(id);
+ const who=i.createdBy||i.createdByEmail;
+ const v=await modal({title:`${who}'s draft`,body:`<p>This blank issue was started by <b>${esc(who)}</b> (${fmtDate(i.createdAt)}). They may still be filling it in on their device.</p><p>Editing it here can mix your notes and photos with theirs. Start your own issue instead?</p>`,
+  buttons:[{label:'Edit anyway',value:'edit'},{label:'Start my own issue',value:'own',cls:'primary'}]});
+ if(v==='own'){const it=await newItem(i.auditId);location.hash='#/item/'+it.id}}
+const itemByHTML=i=>{const p=byId('projects',i.projectId);if(!p||!teamOn(p)||!i.createdByEmail||eqEmail(i.createdByEmail,myEmail()))return'';const n=esc(String(i.createdBy||i.createdByEmail).split(' ')[0]);return isDraftItem(i)?`<span class="by draft" title="Blank draft started by ${esc(i.createdBy||i.createdByEmail)}">Draft · ${n}</span>`:`<span class="by" title="Created by ${esc(i.createdBy||i.createdByEmail)}">${ic('user')}by ${n}</span>`};
 
 </script>
 </body>
