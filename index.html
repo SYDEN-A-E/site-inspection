@@ -338,6 +338,7 @@ body.wl-mode .topnav{display:none}
 
 .pin span b.pn{font-weight:800}.pin span b.pn.l{font-size:8.5px;letter-spacing:-.4px}
 .rn-page h3{margin:14px 0 6px;font-size:15px}.rn-page p{margin:0 0 8px;line-height:1.5}.rn-page ul{margin:0 0 10px 18px;padding:0}.rn-page li{margin:2px 0;line-height:1.45}
+.ph-cap{position:absolute;left:8px;right:8px;bottom:48px;background:rgba(15,23,42,.72);color:#fff;font-size:13px;line-height:1.35;padding:5px 9px;border-radius:6px;white-space:pre-wrap;word-break:break-word;pointer-events:none}
 
 </style>
 </head>
@@ -940,16 +941,22 @@ function auditSeq(aid){if(_AS.arr!==S.audits||_AS.n!==S.audits.length){const m=n
 const insCode=aid=>'I'+(auditSeq(aid)||'?');
 /* Issue numbers are per (inspection, trade prefix): MEC-001, ELE-001 … restart in every inspection. Plumbing / HVAC / MEP → MEC; anything
  that matches no trade (or no trade set) → GEN. Cross-inspection views qualify the number: I2-MEC-001. */
-const TRADE_PFX=[[/fire|life\s*safety|\bfls\b|sprinkl|smoke/i,'FLS'],[/mech|plumb|drain|hvac|\bmep\b|sanitar|chill|duct|ventil|\bgas\b|pump/i,'MEC'],[/elec|lighting|low\s*current|\belv\b|\bpower\b|cabl|wiring|containment|socket/i,'ELE'],
+const TRADE_PFX=[[/fire|life\s*safety|\bfls\b|sprinkl|smoke/i,'FLS'],[/mech|plumb|drain|hvac|\bmep\b|sanitar|chill|duct|ventil|\bgas\b|pump/i,'MEC'],[/secur|cctv|\bcctv\b|access\s*control|intrusion/i,'SEC'],[/\belv\b|extra[\s-]*low|low[\s-]*current|\bit\s*network|\bwi-?\s?fi\b|telephon|\baudio|\bav\b|\ba\/v\b|iptv/i,'ELV'],
+ [/elec|lighting|\bpower\b|cabl|wiring|containment|socket/i,'ELE'],
  [/struct|civil|concrete|steel|rebar|foundation/i,'STR'],[/arch|finish|paint|tiling|tile|floor|joinery|carpent|door|window|glaz|fa[cç]ade|plaster|blockwork|waterproof|ceiling|partition|cladding|masonry/i,'ARC'],
  [/landscap|external|hardscape/i,'EXT'],[/health|\bhse\b|safety/i,'HSE']];
-const PFX_ORDER=['ARC','STR','MEC','ELE','FLS','EXT','HSE','GEN']; // report / list order of the trade groups
+const PFX_ORDER=['ARC','STR','MEC','ELE','ELV','SEC','FLS','EXT','HSE']; // then custom trades (alphabetical), then GEN
+const PFX_BUILTIN=new Set([...PFX_ORDER,'GEN']);
+/* custom trade (no keyword match) → own 3-letter prefix from its name, never one of the built-in prefixes; deterministic (same name → same prefix on every device) */
+function customPfx(name){const w=String(name).normalize('NFKD').replace(/[^A-Za-z0-9 ]+/g,' ').toUpperCase().split(/\s+/).filter(Boolean);if(!w.length)return'GEN';const all=w.join('');
+ const c=[];if(w.length>=3)c.push(w[0][0]+w[1][0]+w[2][0]);if(w.length===2)c.push(w[0].slice(0,2)+w[1][0],w[0][0]+w[1].slice(0,2));c.push(all.slice(0,3));for(let i=1;i<all.length;i++)for(let j=i+1;j<all.length;j++)c.push(all[0]+all[i]+all[j]);
+ const BAD=/^(SEX|ASS|FUK|FCK|CUM|TIT|NAZ|KKK|DIE|WTF|XXX|POO|PEE|GAY|FAG|NIG|JEW)$/;for(const x of c)if(x.length===3&&!PFX_BUILTIN.has(x)&&!BAD.test(x))return x;const two=(all+'XX').slice(0,2);for(const ch of'XQZJKVWYABCDFGHILMNOPRSTU')if(!PFX_BUILTIN.has(two+ch)&&!BAD.test(two+ch))return two+ch;return'GEN'} // report / list order of the trade groups
 const _PFX=new Map();
 const tradePfx=cat=>{const c=String(cat||'').trim();if(!c)return'GEN';if(_PFX.has(c))return _PFX.get(c);let r='GEN';const hit=x=>{for(const[re,p]of TRADE_PFX)if(re.test(x))return p;return''};
  /* a taxonomy subcategory used as the trade (older data / AI) → prefix of its parent trade */
  const parent=typeof TAXONOMY!=='undefined'&&!TAXONOMY[c]?Object.keys(TAXONOMY).find(t=>Object.keys(TAXONOMY[t]||{}).some(sb=>sb.toLowerCase()===c.toLowerCase())):null;
- r=(parent&&hit(parent))||hit(c)||'GEN';_PFX.set(c,r);return r};
-const pfxRank=p=>{const k=PFX_ORDER.indexOf(p);return k<0?99:k};
+ r=(parent&&hit(parent))||hit(c)||(/^(general|gen|misc|miscellaneous|other|others|no trade)$/i.test(c)?'GEN':customPfx(c));_PFX.set(c,r);return r};
+const pfxRank=p=>{const k=PFX_ORDER.indexOf(p);if(k>=0)return k;if(p==='GEN'||!p)return 99;const x=String(p);return 50+[...x].reduce((a,ch,i)=>a+(ch.charCodeAt(0)-47)/Math.pow(48,i+1),0)};
 const pad3=n=>String(n||0).padStart(3,'0');
 const issueNo=i=>!i?'':tradePfx(i.category)+'-'+pad3(i.number);
 const issueRef=(i,ctx)=>!i?'':issueNo(i); // display ref is always just "MEC-003" (no I<k>- tag; Fares). Multi-inspection views show the inspection name/row instead. Never used as a key – links/flags resolve by id
@@ -1468,7 +1475,7 @@ async function generatePDF(d,o,opt={}){await coFresh();const{jsPDF}=window.jspdf
   for(const it of items){const dr=it.pin&&byId('drawings',it.pin.drawingId);
    const f=[['Trade',it.category],['Subcategory',it.subcategory],['Defect type',it.defectType],['Location',it.location],['Assignee',it.assignee],['Due date',fmtDate(it.dueDate)+(isOver(it)?' (OVERDUE)':'')],['Logged',fmtDate(it.createdAt)],['Closed',it.status==='Closed'&&it.closedAt?fmtDate(it.closedAt):'']].filter(x=>x[1]); // status / importance / priority are the badges in the title bar
    if(it.cost)f.push(['Cost estimate',it.cost]);if(dr)f.push(['Drawing ref.',`${dr.name} – pin ${a?issueNo(it):issueRef(it)}`]);if(!a){const au=byId('audits',it.auditId);if(au)f.push(['Inspection',au.title])}
-   const photos=[],extras=[];if(o.photos)for(const[n,id]of(it.photos||[]).entries()){const ph=await getPhoto(id);if(ph)photos.push({data:ph.data,w:ph.w,h:ph.h,cap:photoName(it,n,!a)})}
+   const photos=[],extras=[];if(o.photos)for(const[n,id]of(it.photos||[]).entries()){const ph=await getPhoto(id);if(ph)photos.push({data:ph.data,w:ph.w,h:ph.h,ucap:photoCap(it,id)})}
    if(o.pinrefs&&dr){const c=await drawingCanvas(dr,[it],{crop:it.pin,maxW:700});extras.push({data:c.toDataURL('image/jpeg',.85),w:c.width,h:c.height,cap:'Location: '+dr.name})}
    const L=await pdfIssueLayout(C,f,[{label:'Description',text:it.description},{label:'Cross-trade flag',text:it.flag&&typeof flagText==='function'?flagText(it,p):'',col:[124,58,237]}],photos,extras,+o.perRow||4,{reserve:!!o.photos});const sw=chipW(it.status),pw=chipW(it.priority),phl=phaseLabel(it.phase),fw=phl?chipW(phl)+2:0;font(11,'bold',acc);const nt=a?issueNo(it):issueRef(it);const nw=doc.getTextWidth(nt)+2.5;
    const tls=doc.splitTextToSize(it.title||'Untitled issue',PW-2*M-nw-sw-pw-fw-12),bh=pdfHeadH(tls); /* long titles wrap; bar grows */
@@ -1516,7 +1523,7 @@ ${RC_CSS}:root{--acc:${acc}}
  if(o.charts!==false&&all.length)h+=`<h2 class="pb">Executive summary</h2>${svgExecSummary(all,{acc,progress:rcSpansDays(all,d.audits)})}`;
  const items=d.items;if(o.summary&&items.length)h+=`<h2 class="pb">Summary of issues</h2><table><tr><th>#</th><th>Issue</th><th>Location</th><th>Trade</th><th>Importance</th><th>Priority</th><th>Status</th><th>Assignee</th><th>Due</th></tr>${items.map(i=>`<tr><td><b>${a?issueNo(i):issueRef(i)}</b></td><td>${esc(i.title)}</td><td>${esc(i.location)}</td><td>${esc(i.category)}${i.defectType?`<br><small>${esc(i.defectType)}</small>`:''}</td><td style="color:${PRIO_COLOR[i.priority]};font-weight:bold">${i.priority}</td><td>${phaseLabel(i.phase)||'–'}</td><td style="color:${STATUS_COLOR[i.status]};font-weight:bold">${i.status}</td><td>${esc(i.assignee)}</td><td ${isOver(i)?'style="color:#be123c;font-weight:bold"':''}>${fmtDate(i.dueDate)}</td></tr>`).join('')}</table>`;
  {const ns=o.notes===false?[]:notesFor(p,a);if(ns.length)h+=`<h2 class="pb">Notes</h2><div class="rn-page">${notesHTML(ns)}</div>`}
- if(items.length){h+=`<h2 class="pb">Issue details</h2>`;for(const i of items){const dr=i.pin&&byId('drawings',i.pin.drawingId);const figs=[];if(o.photos)for(const[n,id]of(i.photos||[]).entries()){const ph=await getPhoto(id);if(ph)figs.push(`<figure><img src="${ph.data}" alt=""></figure>`)}
+ if(items.length){h+=`<h2 class="pb">Issue details</h2>`;for(const i of items){const dr=i.pin&&byId('drawings',i.pin.drawingId);const figs=[];if(o.photos)for(const[n,id]of(i.photos||[]).entries()){const ph=await getPhoto(id);if(ph)figs.push(`<figure><img src="${ph.data}" alt="">${photoCap(i,id)?`<figcaption class="ucap">${esc(photoCap(i,id))}</figcaption>`:''}</figure>`)}
   let main=figs.shift()||'';if(o.pinrefs&&dr){const c=await drawingCanvas(dr,[i],{crop:i.pin,maxW:600});figs.push(`<figure><img src="${c.toDataURL('image/jpeg',.85)}"></figure>`)}
   if(!main&&o.photos)main=figs.shift()||'<div class="noph">No photo</div>'; /* left column always reserved: photo, else drawing snapshot, else 'No photo' box; text always right */
   const kv=[['Trade',i.category],['Subcategory',i.subcategory],['Defect type',i.defectType],['Location',i.location],['Assignee',i.assignee],['Due date',fmtDate(i.dueDate)+(isOver(i)?' (OVERDUE)':'')],['Logged',fmtDate(i.createdAt)],['Closed',i.status==='Closed'&&i.closedAt?fmtDate(i.closedAt):''],['Drawing ref.',dr?dr.name+' – pin '+(a?issueNo(i):issueRef(i)):''],['Cost',i.cost],...(a?[]:[['Inspection',(byId('audits',i.auditId)||{}).title]])].filter(x=>x[1]);
@@ -1529,8 +1536,8 @@ ${RC_CSS}:root{--acc:${acc}}
  fr.querySelector('[data-p]').onclick=()=>ifr.contentWindow.print();fr.querySelector('[data-c]').onclick=()=>fr.remove();const db=fr.querySelector('[data-dbx]');if(db)db.onclick=async()=>{const dn=busy('Generating PDF for Dropbox…');try{const doc=await generatePDF(d,o,{noDownload:true});dn();await Sync.uploadReport(doc.output('blob'),d,o)}catch(e){alertBox('Failed: '+e.message)}finally{dn()}}}finally{done()}}
 
 const tradeCounts=items=>{const c={};items.forEach(i=>{if(i.category)c[i.category]=(c[i.category]||0)+1});return Object.entries(c).sort((x,y)=>y[1]-x[1]||x[0].localeCompare(y[0]))};
-function csvBlob(items){const mq=multiAudit(items);const cols=['Project','Inspection','Number','Ref','Title','Description','Location','Trade','Subcategory','Defect type','Importance','Priority','Status','Assignee','Due date','Overdue','Cost','Drawing','Pin X (%)','Pin Y (%)','Photos','Created','Updated','Closed','Photo names','Inspecting company'];const q=v=>{v=String(v??'');return/[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};const iso=t=>t?new Date(t).toISOString():'';
- const rows=items.map(i=>{const p=byId('projects',i.projectId),a=byId('audits',i.auditId),dr=i.pin&&byId('drawings',i.pin.drawingId);return[p&&p.name,a&&a.title,i.number,issueRef(i),i.title,i.description,i.location,i.category,i.subcategory,i.defectType,i.priority,phaseLabel(i.phase),i.status,i.assignee,i.dueDate,isOver(i)?'Yes':'No',i.cost,dr&&dr.name,dr?(i.pin.x*100).toFixed(1):'',dr?(i.pin.y*100).toFixed(1):'',(i.photos||[]).length,iso(i.createdAt),iso(i.updatedAt),iso(i.closedAt),(i.photos||[]).map((x,k)=>photoName(i,k,mq)).join('; '),coName(p)]});
+function csvBlob(items){const mq=multiAudit(items);const cols=['Project','Inspection','Number','Ref','Title','Description','Location','Trade','Subcategory','Defect type','Importance','Priority','Status','Assignee','Due date','Overdue','Cost','Drawing','Pin X (%)','Pin Y (%)','Photos','Created','Updated','Closed','Photo names','Photo captions','Inspecting company'];const q=v=>{v=String(v??'');return/[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};const iso=t=>t?new Date(t).toISOString():'';
+ const rows=items.map(i=>{const p=byId('projects',i.projectId),a=byId('audits',i.auditId),dr=i.pin&&byId('drawings',i.pin.drawingId);return[p&&p.name,a&&a.title,i.number,issueRef(i),i.title,i.description,i.location,i.category,i.subcategory,i.defectType,i.priority,phaseLabel(i.phase),i.status,i.assignee,i.dueDate,isOver(i)?'Yes':'No',i.cost,dr&&dr.name,dr?(i.pin.x*100).toFixed(1):'',dr?(i.pin.y*100).toFixed(1):'',(i.photos||[]).length,iso(i.createdAt),iso(i.updatedAt),iso(i.closedAt),(i.photos||[]).map((x,k)=>photoName(i,k,mq)).join('; '),(i.photos||[]).map((x,k)=>photoCap(i,x)?photoName(i,k,mq)+': '+photoCap(i,x):'').filter(Boolean).join('; '),coName(p)]});
  return new Blob(['\ufeff'+[cols,...rows].map(r=>r.map(q).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'})}
 
 /* ===== Backup ===== */
@@ -2768,7 +2775,7 @@ async function conPDF(d,o,opt={}){await coFresh();const{jsPDF}=window.jspdf;cons
  /* issues by trade › subcategory */
  const items=d.items;const C={doc,M,font,T,PW:()=>PW,PH:()=>PH,newPage:()=>{newPage();return y}};if(items.length){newPage();heading('Issues by trade');let first=true;
   const lay=async it=>{const au=byId('audits',it.auditId);const f=[['Trade',it.category],['Subcategory',it.subcategory],['Defect type',it.defectType],['Location',it.location],['Raised by',raisedBy(it,p)],['Inspection',au&&au.title],['Logged',fmtDate(it.createdAt)],['Closed',it.status==='Closed'&&it.closedAt?fmtDate(it.closedAt):''],['Assignee',it.assignee],['Due date',fmtDate(it.dueDate)+(isOver(it)?' (OVERDUE)':'')]].filter(x=>x[1]);
-   const photos=[];if(o.photos)for(const[n,id]of(it.photos||[]).entries()){const ph=await getPhoto(id);if(ph)photos.push({data:ph.data,w:ph.w,h:ph.h,cap:photoName(it,n,true)})}
+   const photos=[];if(o.photos)for(const[n,id]of(it.photos||[]).entries()){const ph=await getPhoto(id);if(ph)photos.push({data:ph.data,w:ph.w,h:ph.h,ucap:photoCap(it,id)})}
    const extras=[],dr=!photos.length&&o.photos&&it.pin&&byId('drawings',it.pin.drawingId);if(dr){try{const c=await drawingCanvas(dr,[it],{crop:it.pin,maxW:700});extras.push({data:c.toDataURL('image/jpeg',.85),w:c.width,h:c.height,cap:'Location: '+dr.name})}catch(e){console.warn('Drawing snapshot failed',e.message)}}
    return pdfIssueLayout(C,f,[{label:'Description',text:it.description},{label:'Cross-trade flag',text:it.flag?flagText(it,p):'',col:[124,58,237]}],photos,extras,+o.perRow||4,{reserve:!!o.photos})};
   const av=()=>PH-16-(M+4),keepH=L=>14+(14+L.h<=av()?L.h:L.topH); // trade / subcategory headings stay with their first issue
@@ -2802,7 +2809,7 @@ function ivMediaHTML(i,ed){const ph=i.photos||[],n=ph.length,id=i.id,k=ivSel(i);
  const add=ed?`<label class="btn primary sm">${ic('camera')} Take photo<input type="file" accept="image/*,.heic,.heif" capture="environment" hidden data-change="item-photos" data-id="${id}"></label><label class="btn sm">${ic('upload')} Upload<input type="file" accept="image/*,.heic,.heif" multiple hidden data-change="item-photos" data-id="${id}"></label>`:'';
  if(!n)return`<section class="iv-media iv-nophoto" aria-label="Photos">${ed?`<div class="iv-drop" data-drop="${id}" data-act="iv-pick"><span class="iv-drop-ic">${ic('camera')}</span><b>Add a photo of this issue</b><span>Drop photos here, take a photo or upload from your device</span><div class="iv-drop-btns">${add}</div></div>`:`<div class="iv-drop iv-ro"><span class="iv-drop-ic">${ic('camera')}</span><b>No photos</b></div>`}</section>`;
  const src=photoSrcName(i,ph[k]);
- return`<section class="iv-media" aria-label="Photos"><div class="iv-stage photos" ${ed?`data-drop="${id}"`:''}>${ph.map((p,j)=>`<div class="ph${j===k?' on':''}" data-k="${j}"><img data-photo="${p}" data-act="lightbox" alt="${esc(photoName(i,j))}" title="Tap to zoom"><div class="ph-act" ${ed?'':'hidden'}>${aiPhotoBtn(id,p)}${j>0?`<button data-act="photo-first" data-id="${id}" data-ph="${p}" title="Make main photo">★</button>`:''}<button data-act="annotate" data-id="${id}" data-ph="${p}">${ic('pen')} Annotate</button><button data-act="del-photo" data-id="${id}" data-ph="${p}" title="Delete photo">${ic('trash')}</button></div></div>`).join('')}
+ return`<section class="iv-media" aria-label="Photos"><div class="iv-stage photos" ${ed?`data-drop="${id}"`:''}>${ph.map((p,j)=>`<div class="ph${j===k?' on':''}" data-k="${j}"><img data-photo="${p}" data-act="lightbox" alt="${esc(photoName(i,j))}" title="Tap to zoom">${photoCap(i,p)?`<div class="ph-cap">${esc(photoCap(i,p))}</div>`:''}<div class="ph-act" ${ed?'':'hidden'}>${aiPhotoBtn(id,p)}${j>0?`<button data-act="photo-first" data-id="${id}" data-ph="${p}" title="Make main photo">★</button>`:''}<button data-act="photo-cap" data-id="${id}" data-ph="${p}" title="Add / edit caption">${ic('edit')} Caption</button><button data-act="annotate" data-id="${id}" data-ph="${p}">${ic('pen')} Annotate</button><button data-act="del-photo" data-id="${id}" data-ph="${p}" title="Delete photo">${ic('trash')}</button></div></div>`).join('')}
  ${n>1?`<button type="button" class="iv-nav prev" data-act="iv-step" data-d="-1" aria-label="Previous photo">‹</button><button type="button" class="iv-nav next" data-act="iv-step" data-d="1" aria-label="Next photo">›</button>`:''}</div>
  <div class="iv-cap"><span class="iv-name" id="iv-name">${esc(photoName(i,k))}</span><span class="iv-src" id="iv-src" ${src?'':'hidden'}>${esc(src)}</span><span class="iv-cnt" id="iv-cnt">${k+1} / ${n}</span></div>
  ${n>1||ed?`<div class="iv-strip">${n>1?`<div class="iv-thumbs">${ph.map((p,j)=>`<button type="button" class="iv-th${j===k?' on':''}" data-act="iv-sel" data-k="${j}" title="${esc(photoName(i,j))}"><img data-photo="${p}" alt=""></button>`).join('')}</div>`:''}${ed?`<div class="iv-add">${add}</div>`:''}</div>`:''}</section>`}
@@ -2938,12 +2945,13 @@ async function pdfIssueLayout(C,fields,blocks,photos,extras,per,opt={}){const{do
  for(let k=0;k<f.length;k+=pairs){const cells=f.slice(k,k+pairs).map(([l,v])=>{font(9,'normal');const ls=doc.splitTextToSize(String(v),valW).slice(0,4);return{l,ls,red:/OVERDUE/.test(String(v))}});rows.push({cells,h:Math.max(...cells.map(c=>c.ls.length))*4+1.8})}
  const bl=blocks.filter(b=>b&&b.text).map(b=>{font(9.5,'normal');return{...b,ls:doc.splitTextToSize(String(b.text),rw)}});
  const fit=new Map();for(const im of all)fit.set(im,pdfFit(doc,im,lw));const CAP=2;
- const ph=main?fit.get(main).h:noph?PDF_NOPH_H:0,thumbs=all.filter(im=>im!==main),gx=[M,M+lw+gap],grid=[];
- for(let k=0;k<thumbs.length;k+=2){const r=thumbs.slice(k,k+2);grid.push({ims:r,h:Math.max(...r.map(im=>fit.get(im).h))+CAP})}
+ const CL=new Map();for(const im of all){font(8,'italic');CL.set(im,im.ucap?doc.splitTextToSize(String(im.ucap),lw-1):[])};const capH=im=>{const n=(CL.get(im)||[]).length;return n?n*3.5+1.2:0};
+ const ph=main?fit.get(main).h+capH(main):noph?PDF_NOPH_H:0,thumbs=all.filter(im=>im!==main),gx=[M,M+lw+gap],grid=[];
+ for(let k=0;k<thumbs.length;k+=2){const r=thumbs.slice(k,k+2);grid.push({ims:r,h:Math.max(...r.map(im=>fit.get(im).h+capH(im)))+CAP})}
  const rightH=rows.reduce((a,r)=>a+r.h,0)+bl.reduce((a,b)=>a+3+4.5+b.ls.length*4.3,0),topH=Math.max(main?ph+CAP:noph?ph+2:0,rightH);
  return{h:topH+2+grid.reduce((a,r)=>a+r.h+3,0),topH:Math.min(topH,main?ph+CAP+12:noph?ph+14:24),
   async draw(y){const bottom=()=>C.PH()-16;let ry=y,lb=y;
-   const pic=(im,x,y0)=>{const F=fit.get(im);doc.addImage(im.data,imgFmt(im.data),x+F.dx,y0,F.w,F.h,undefined,'FAST');};/* no caption under photos */
+   const pic=(im,x,y0)=>{const F=fit.get(im);doc.addImage(im.data,imgFmt(im.data),x+F.dx,y0,F.w,F.h,undefined,'FAST');const cl=CL.get(im)||[];if(cl.length){font(8,'italic',[71,85,105]);cl.forEach((l,j)=>T(l,x+F.dx,y0+F.h+3.6+j*3.5))}};/* only user-written captions under photos (no file names) */
    if(main){pic(main,M,y);lb=y+ph+CAP}else if(noph){doc.setFillColor(244,246,249);doc.setDrawColor(226,232,240);doc.setLineWidth(.3);doc.roundedRect(M,y,lw,ph,2,2,'FD');font(9,'normal',[150,158,170]);T('No photo',M+lw/2,y+ph/2+1.5,{align:'center'});lb=y+ph+2}
    const brk=()=>{ry=C.newPage();lb=ry};
    for(const r of rows){if(ry+r.h>bottom())brk();r.cells.forEach((c,j)=>{const x=rx+j*(pw+6);font(7,'bold',GREY);T(c.l.toUpperCase(),x,ry+3.3);font(9,'normal',c.red?[190,18,60]:DARK);T(c.ls,x+labW,ry+3.3)});
@@ -3478,6 +3486,7 @@ function itemRebase(latest,base,mine){const r=JSON.parse(JSON.stringify(latest))
  for(const f of new Set([...Object.keys(base),...Object.keys(mine)])){if(['id','ft','ftAt','pm','updatedAt','updatedBy','updatedByEmail','createdAt','createdBy','createdByEmail'].includes(f))continue;if(itJ(mine[f])===itJ(base[f]))continue;
   if(f==='photos'){const b=base.photos||[],m=mine.photos||[],add=m.filter(x=>!b.includes(x)),rm=new Set(b.filter(x=>!m.includes(x)));r.photos=[...(r.photos||[]).filter(x=>!rm.has(x)),...add.filter(x=>!(r.photos||[]).includes(x))]}
   else if(f==='photoSrc')r.photoSrc={...(r.photoSrc||{}),...(mine.photoSrc||{})};
+  else if(f==='pcap'){const b=base.pcap||{},m=mine.pcap||{};r.pcap={...(r.pcap||{})};for(const k of Object.keys(m))if(itJ(m[k])!==itJ(b[k]))r.pcap[k]=m[k]}
   else if(mine[f]===undefined)delete r[f];else r[f]=JSON.parse(JSON.stringify(mine[f]))}
  return r}
 /* field stamps for a save: rec = record about to be stored, prev = stored version (or null) */
@@ -3491,6 +3500,8 @@ function itemStamp(rec,prev,now,by){rec.ft={...((prev&&prev.ft)||{}),...(rec.ft|
 function itemMerge(L,R){if(!L)return R;if(!R)return L;const M=JSON.parse(JSON.stringify(L));M.ft={...(L.ft||{})};
  for(const f of itFields(L,R)){const tl=itTs(L,f),tr=itTs(R,f);const useR=tr>tl||(tr===tl&&itJ(R[f])!==itJ(L[f])&&itJ(R[f])>itJ(L[f]));
   if(useR){if(R[f]===undefined)delete M[f];else M[f]=JSON.parse(JSON.stringify(R[f]))}M.ft[f]=Math.max(tl,tr)}
+ // photo captions: merged per photo by their own edit time
+ if(L.pcap||R.pcap){const pc={...(L.pcap||{})};for(const[k,v]of Object.entries(R.pcap||{}))if(v&&(!pc[k]||(v.at||0)>(pc[k].at||0)))pc[k]=v;M.pcap=JSON.parse(JSON.stringify(pc))}
  // photos: union minus removals / tombstones
  const pm={},put=(id,o)=>{const c=pm[id]||{};pm[id]={a:Math.max(c.a||0,o.a||0),r:Math.max(c.r||0,o.r||0),...((o.a||0)>=(c.a||0)&&o.by?{by:o.by}:c.by?{by:c.by}:{})}};
  for(const X of[L,R]){for(const[id,o]of Object.entries(X.pm||{}))put(id,o);const t=itLegacy(X)?(X.updatedAt||0):((X.ft&&X.ft.photos)||X.updatedAt||0);for(const id of X.photos||[])if(!(X.pm&&X.pm[id]&&X.pm[id].a))put(id,{a:t})}
@@ -3610,6 +3621,17 @@ function notesMerge(L,R){const win=(R.updatedAt||0)>(L.updatedAt||0)?R:L,other=w
  if((other.rptNotesAt||0)>(win.rptNotesAt||0)){out={...win,rptNotes:other.rptNotes,rptNotesAt:other.rptNotesAt};if(other.rptNotes===undefined)delete out.rptNotes}
  return out===L?null:JSON.parse(JSON.stringify(out))}
 function notesChk(p,a){const n=notesFor(p,a).length;return n?`<label class="chk"><input type="checkbox" name="notes" checked> Notes page <span class="muted small">(${n} section${n>1?'s':''}${a&&notesOwn(a)?', this inspection':''})</span></label>`:`<input type="checkbox" name="notes" hidden><span class="small muted" style="align-self:center">No report notes page${projRole(p).admin?' – add one with “Notes page”':''}</span>`}
+
+/* ===== Optional user-written photo captions
+ item.pcap = {photoId: {t: text, at: time, by}} – merged per photo (newest `at` wins), older app versions keep the field untouched.
+ Reports show a caption only when someone typed one; file-name captions stay removed. */
+function photoCap(it,id){const c=it&&it.pcap&&it.pcap[id];return c&&typeof c.t==='string'?c.t.trim():''}
+async function photoCapEdit(itemId,ph){const it=byId('items',itemId);if(!it)return;
+ const r=await modal({title:'Photo caption',body:`<div style="display:flex;gap:12px;align-items:flex-start"><img data-photo="${ph}" alt="" style="width:120px;height:90px;object-fit:cover;border-radius:6px"><label style="flex:1"><span>Caption (optional – shown under this photo in reports)</span><textarea id="pcap-t" rows="3" maxlength="500" style="width:100%" placeholder="e.g. Oil staining at the transformer base">${esc(photoCap(it,ph))}</textarea></label></div>`,
+  onOpen:el=>{hydrate(el);const t=el.querySelector('#pcap-t');t&&t.focus()},collect:el=>el.querySelector('#pcap-t').value.trim()});
+ if(r===null||r===undefined)return;const cur=byId('items',itemId);if(!cur)return;if(photoCap(cur,ph)===r)return;
+ cur.pcap={...(cur.pcap||{}),[ph]:{t:r,at:Date.now(),by:currentUser().email||currentUser().name||''}};await save('items',cur);toast(r?'Caption saved':'Caption removed');render()}
+Object.assign(ACT,{'photo-cap':el=>photoCapEdit(el.dataset.id,el.dataset.ph)});
 
 </script>
 </body>
