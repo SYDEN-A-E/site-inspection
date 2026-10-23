@@ -337,6 +337,7 @@ body.wl-mode .topnav{display:none}
 .lgtab{width:100%;border-collapse:collapse;font-size:12px;margin-top:4px}.lgtab th{text-align:left;color:#64748b;font-weight:600;padding:3px 8px 3px 0;vertical-align:top;white-space:nowrap}.lgtab td{padding:3px 0;word-break:break-word}
 
 .pin span b.pn{font-weight:800}.pin span b.pn.l{font-size:8.5px;letter-spacing:-.4px}
+.rn-page h3{margin:14px 0 6px;font-size:15px}.rn-page p{margin:0 0 8px;line-height:1.5}.rn-page ul{margin:0 0 10px 18px;padding:0}.rn-page li{margin:2px 0;line-height:1.45}
 
 </style>
 </head>
@@ -919,6 +920,7 @@ async function save(store,o,opt={}){let renum=null;if(store==='items'&&!opt.raw&
   if(IP&&IP.rec!==o){const r=IP.rec;Object.keys(o).forEach(k=>{if(!(k in r))delete o[k]});Object.assign(o,r)}}
  const isNew=!o.createdAt;o.updatedAt=Math.max(Date.now(),(o.updatedAt||0)+1,IP&&IP.prev?(IP.prev.updatedAt||0)+1:0);if(isNew)o.createdAt=o.updatedAt;
  if(BY_STORES.includes(store)&&!opt.keepBy){const w=currentUser();if(w.name){o.updatedBy=w.name;o.updatedByEmail=w.email;if(isNew){o.createdBy=w.name;o.createdByEmail=w.email}}}
+ if((store==='projects'||store==='audits')&&typeof notesPrepSave==='function')await notesPrepSave(store,o);
  if(IP)itemStamp(o,IP.prev,o.updatedAt,(currentUser().email||currentUser().name||''));
  await DB.put(store,o);const a=S[store];const i=a.findIndex(x=>x.id===o.id);if(i>=0)a[i]=o;else a.push(o);if(store==='items')itBase(o);const b=bundleOf(store,o);if(b)Sync.markDirty(b);if(renum)await fixNumbers(renum);return o}
 async function remove(store,id){const rec=S[store].find(x=>x.id===id);const b=rec&&bundleOf(store,rec);await DB.del(store,id);S[store]=S[store].filter(x=>x.id!==id);if(b)await addTomb(store+':'+id,b)}
@@ -1113,7 +1115,7 @@ function viewProject(id,params={}){const p=byId('projects',id);if(!p)return notF
  const head=`${crumbs([['Projects','#/'],[p.name]])}
  <div class="card pad" style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">${logoBox(p.logo,p.name).replace('plogo','plogo" style="width:72px;height:72px;font-size:24px')}
  <div style="flex:1;min-width:220px"><h1 style="margin:0 0 6px;font-size:23px">${esc(p.name)}</h1>${teamOn(p)?`<div class="role-line">${roleBadgeHTML(p)} <span class="muted small">${esc(roleScopeText(p))}</span></div>`:''}<dl class="kv">${[['Project folder',p.folderName&&p.folderName!==p.name?p.folderName:''],['Reference',p.reference],['Client',p.client],['Address',p.address],['Date',fmtDate(p.date)],['Prepared by',p.company],['Last edited',p.updatedBy?fmtDT(p.updatedAt)+' by '+p.updatedBy:'']].filter(x=>x[1]).map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${p.notes?`<p class="muted small" style="white-space:pre-wrap;margin:8px 0 0">${esc(p.notes)}</p>`:''}</div>
- <div class="actions">${R.admin?`<button class="btn" data-act="edit-project" data-id="${id}">${ic('edit')}<span class="lbl">Edit</span></button><button class="btn" data-act="repair-open" data-id="${id}" title="Check issues with mixed authorship / photos">${ic('layers')}<span class="lbl">Check issues</span></button>`:''}<button class="btn" data-act="report" data-type="project" data-id="${id}">${ic('file')}<span class="lbl">Report</span></button>${teamOn(p)&&R.mode!=='none'?`<button class="btn primary" data-act="con-report" data-id="${id}">${ic('file')}<span class="lbl">${R.admin?'Consolidated report':'My trade report'}</span></button>`:''}${R.admin?`<button class="btn danger" data-act="del-project" data-id="${id}" title="Delete project">${ic('trash')}</button>`:teamOn(p)?`<button class="btn" data-act="forget-project" data-id="${id}" title="Remove from this device">${ic('trash')}</button>`:''}</div></div>
+ <div class="actions">${R.admin?`<button class="btn" data-act="edit-project" data-id="${id}">${ic('edit')}<span class="lbl">Edit</span></button><button class="btn" data-act="repair-open" data-id="${id}" title="Check issues with mixed authorship / photos">${ic('layers')}<span class="lbl">Check issues</span></button><button class="btn" data-act="notes-edit" data-kind="project" data-id="${id}" title="Report notes page (disclaimer, basis of design, general notes)">${ic('file')}<span class="lbl">Notes page</span></button>`:''}<button class="btn" data-act="report" data-type="project" data-id="${id}">${ic('file')}<span class="lbl">Report</span></button>${teamOn(p)&&R.mode!=='none'?`<button class="btn primary" data-act="con-report" data-id="${id}">${ic('file')}<span class="lbl">${R.admin?'Consolidated report':'My trade report'}</span></button>`:''}${R.admin?`<button class="btn danger" data-act="del-project" data-id="${id}" title="Delete project">${ic('trash')}</button>`:teamOn(p)?`<button class="btn" data-act="forget-project" data-id="${id}" title="Remove from this device">${ic('trash')}</button>`:''}</div></div>
  ${ps&&ps.state!=='ok'?`<div class="hint pf-status" style="margin-top:12px">${esc(ps.msg)}</div>`:p.stub?`<div class="hint pf-status" style="margin-top:12px">You were added to this project – its data downloads from the project's Dropbox folder on the next sync.</div>`:''}
  ${team?`<div class="tabs"><a href="#/project/${id}" class="${tab!=='team'?'on':''}">Overview</a><a href="#/project/${id}?tab=team" class="${tab==='team'?'on':''}">Team${teamOn(p)?' ('+p.team.length+')':''}</a></div>`:''}`;
  if(R.mode==='none')return head+`<div class="card pad">You're not on this project's team, so its issues are hidden. Ask ${esc((teamAdmins(p)[0]||{}).name||p.ownerName||'the project admin')} to add you.</div>`;
@@ -1129,7 +1131,7 @@ function viewProject(id,params={}){const p=byId('projects',id);if(!p)return notF
 function viewAudit(id,params){const a=byId('audits',id);if(!a)return notFound();const p=byId('projects',a.projectId);const R=projRole(p);if(R.mode==='none')return notFound();const items=visAuditItems(id);const canA=R.admin||(!R.ro&&eqEmail(a.createdByEmail,R.email));const tab=params.tab||'issues';const cls=S.checklists.filter(c=>c.auditId===id);
  return`${crumbs([['Projects','#/'],[p.name,'#/project/'+p.id],[a.title]])}
  <div class="page-head"><h1>${esc(a.title)}<span class="sub">${fmtDate(a.date)}${a.inspector?' · Inspector: '+esc(a.inspector):''}${a.weather?' · '+esc(a.weather):''}</span></h1>
- <div class="actions">${canA?`<button class="btn" data-act="edit-audit" data-id="${id}">${ic('edit')}<span class="lbl">Edit</span></button>`:''}<button class="btn" data-act="report" data-type="audit" data-id="${id}">${ic('file')}<span class="lbl">Report</span></button>${R.admin?`<button class="btn danger" data-act="del-audit" data-id="${id}">${ic('trash')}</button>`:''}${R.ro?'':impBtnHTML(a)+aiSnapHTML(a)+`<button class="btn primary" data-act="new-item" data-id="${id}">${ic('plus')} Add issue</button>`}</div></div>
+ <div class="actions">${canA?`<button class="btn" data-act="edit-audit" data-id="${id}">${ic('edit')}<span class="lbl">Edit</span></button>`:''}<button class="btn" data-act="report" data-type="audit" data-id="${id}">${ic('file')}<span class="lbl">Report</span></button>${R.admin?`<button class="btn" data-act="notes-edit" data-kind="audit" data-id="${id}" title="Report notes page for this inspection">${ic('file')}<span class="lbl">Notes page</span></button><button class="btn danger" data-act="del-audit" data-id="${id}">${ic('trash')}</button>`:''}${R.ro?'':impBtnHTML(a)+aiSnapHTML(a)+`<button class="btn primary" data-act="new-item" data-id="${id}">${ic('plus')} Add issue</button>`}</div></div>
  ${a.notes?`<div class="card pad small" style="white-space:pre-wrap">${esc(a.notes)}</div>`:''}
  ${statsHTML(items,'a-'+id)}${tradeHTML(items,'a-'+id)}
  <div class="tabs"><a href="#/audit/${id}" class="${tab==='issues'?'on':''}">Issues (${items.length})</a><a href="#/audit/${id}?tab=checklists" class="${tab==='checklists'?'on':''}">Checklists (${cls.length})</a></div>
@@ -1411,7 +1413,7 @@ async function reportDialog(scope){const isA=scope.type==='audit';const obj=byId
  <label><span>Theme colour</span><select name="color">${themeOpts(p)}</select></label>
  
  <label><span>Issue order</span><select name="sort"><option value="number">By trade, then number</option><option value="priority">By importance</option><option value="phase">By priority (phase)</option><option value="location">By location</option></select></label>
- ${chk('closed','Include closed issues')}${chk('summary','Summary table')}${chk('photos','Photos')}${chk('pinrefs','Drawing location thumbnail per issue')}${chk('drawings','Drawings with pins')}${chk('checklists','Checklists')}${chk('charts','Include charts')}</div>
+ ${chk('closed','Include closed issues')}${chk('summary','Summary table')}${chk('photos','Photos')}${chk('pinrefs','Drawing location thumbnail per issue')}${chk('drawings','Drawings with pins')}${chk('checklists','Checklists')}${chk('charts','Include charts')}${notesChk(p,isA?obj:null)}</div>
  <p class="help">PDF downloads a file you can share by email / WhatsApp. Print view opens a printable page (use “Save as PDF” in the print dialog).</p>`,
  buttons:[{label:'Cancel',value:null},{label:'CSV',value:'csv'},{label:'Print view',value:'print'},...(Dbx.connected()?[{label:'Save PDF to Dropbox',value:'dbx'}]:[]),{label:'Download PDF',value:'pdf',cls:'primary'}],
  onOpen:(el,close)=>logoCheck(el.querySelector('#lgchk'),p,close),collect:(el,v)=>{const o={};$$('input,select',el).forEach(i=>{if(i.name)o[i.name]=i.type==='checkbox'?i.checked:i.value});return{v,o}}});
@@ -1458,6 +1460,8 @@ async function generatePDF(d,o,opt={}){await coFresh();const{jsPDF}=window.jspdf
    if(y+h>PH-16){newPage();head()}if(ix%2){doc.setFillColor(246,248,251);doc.rect(M,y,PW-2*M,h,'F')}let x=M;
    ls.forEach((l,c)=>{if(c===4)font(8,'bold',hex2rgb(PRIO_COLOR[it.priority]||'#64748b'));else if(c===6)font(8,'bold',hex2rgb(STATUS_COLOR[it.status]));else if(c===8&&isOver(it))font(8,'bold',[190,18,60]);else font(8,c===0?'bold':'normal',c===0?acc:DARK);T(l,x+1.5,y+4.2);x+=cols[c][1]});
    doc.setDrawColor(226,232,240);doc.setLineWidth(.2);doc.line(M,y+h,PW-M,y+h);y+=h})}
+ /* report notes page */
+ {const ns=o.notes===false?[]:notesFor(p,a);if(ns.length){const C_={doc,font,ensure,Y:()=>y,setY:v=>{y=v},M,PW:()=>PW,acc,DARK};newPage();heading(o.notesTitle||'Notes');pdfNotes(C_,ns)}}
  /* items */
  if(items.length){newPage();heading('Issue details');
   const C={doc,M,font,T,PW:()=>PW,PH:()=>PH,newPage:()=>{newPage();return y}};
@@ -1496,7 +1500,7 @@ async function generatePDF(d,o,opt={}){await coFresh();const{jsPDF}=window.jspdf
 
 async function printView(d,o){const done=busy('Preparing print view…');try{await coFresh();const acc=o.color,lt=`rgb(${mix(hex2rgb(acc),.88).join(',')})`,p=d.project,a=d.audit,per=+o.perRow||3,all=d.allItems,co=coInfo(coOf(p)),logo=co.logo,clogo=p.logo&&p.logo!==co.logo?p.logo:'';
  const kv=[['Project',p.name],['Reference',p.reference],['Client',p.client],['Site address',p.address],['Project date',fmtDate(p.date)],...(a?[['Inspection',a.title],['Inspection date',fmtDate(a.date)],['Inspector',a.inspector],['Weather',a.weather],['Attendees',a.attendees]]:[['Inspections',d.audits.map(x=>`${x.title} (${fmtDate(x.date)})`).join(', ')]]),['Prepared by',[co.name,...co.lines].filter(Boolean).join('\n')],['Report date',fmtDT(Date.now())]].filter(r=>r[1]);
- const cnt=s=>all.filter(i=>i.status===s).length;let h=`<!doctype html><html><head><meta charset="utf-8"><title>${esc(o.title)}</title><style>
+ const cnt=s=>all.filter(i=>i.status===s).length;let h=`<!doctype html><html><head><meta charset="utf-8"><title>${esc(o.title)}</title><style>.rn-page h3{margin:14px 0 6px;font-size:15px}.rn-page p{margin:0 0 8px;line-height:1.5}.rn-page ul{margin:0 0 10px 18px;padding:0}.rn-page li{margin:2px 0}
 @page{size:A4 portrait;margin:13mm}*{box-sizing:border-box}body{font:10.5pt/1.4 Helvetica,Arial,sans-serif;color:#1e2430;margin:0;padding:16px;-webkit-print-color-adjust:exact;print-color-adjust:exact}.runhead{display:flex;align-items:center;gap:10px;margin:14px 0 4px;padding:0 0 6px;border-bottom:1px solid #e2e8f0;font-size:8.5pt;color:#475569}.runhead img{height:26px;max-width:110px;object-fit:contain}.runhead span{margin-left:auto;color:#8a94a6}@media print{body{padding:0}}
 .cover{background:${acc};color:#fff;padding:26px;border-radius:6px;display:flex;justify-content:space-between;gap:20px}.cover h1{margin:6px 0;font-size:24pt}.cover .lg{background:#fff;border-radius:6px;padding:8px;align-self:flex-start}.cover .lg img{max-width:150px;max-height:84px;display:block}.cover .lgs{display:flex;flex-direction:column;gap:8px;align-self:flex-start}.cover .co{margin-top:14px;font-weight:bold}.cofoot{margin-top:28px;border-top:1px solid #dde3ea;padding-top:8px;font-size:8pt;color:#778;text-align:center}
 h2{color:${acc};border-bottom:2px solid ${acc};padding-bottom:4px;margin:24px 0 12px;font-size:15pt}dl{display:grid;grid-template-columns:150px 1fr;gap:5px 12px;margin:18px 0}dt{color:#667;font-weight:bold;font-size:8.5pt;text-transform:uppercase}dd{margin:0;white-space:pre-wrap}
@@ -1511,6 +1515,7 @@ ${RC_CSS}:root{--acc:${acc}}
 <dl>${kv.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl><div class="stats"><div><b>${all.length}</b>Total</div><div><b style="color:#dc2626">${cnt('Open')}</b>Open</div><div><b style="color:#d97706">${cnt('In Progress')}</b>In progress</div><div><b style="color:#16a34a">${cnt('Closed')}</b>Closed</div><div><b style="color:#9f1239">${all.filter(isOver).length}</b>Overdue</div></div>${tradeCounts(all).length?`<p style="font-size:9pt;color:#556"><b>Issues by trade:</b> ${tradeCounts(all).map(([t,n])=>esc(t)+' '+n).join(' · ')}</p>`:''}${[a?a.notes:'',p.notes].filter(Boolean).map(n=>`<p class="desc">${esc(n)}</p>`).join('')}`;
  if(o.charts!==false&&all.length)h+=`<h2 class="pb">Executive summary</h2>${svgExecSummary(all,{acc,progress:rcSpansDays(all,d.audits)})}`;
  const items=d.items;if(o.summary&&items.length)h+=`<h2 class="pb">Summary of issues</h2><table><tr><th>#</th><th>Issue</th><th>Location</th><th>Trade</th><th>Importance</th><th>Priority</th><th>Status</th><th>Assignee</th><th>Due</th></tr>${items.map(i=>`<tr><td><b>${a?issueNo(i):issueRef(i)}</b></td><td>${esc(i.title)}</td><td>${esc(i.location)}</td><td>${esc(i.category)}${i.defectType?`<br><small>${esc(i.defectType)}</small>`:''}</td><td style="color:${PRIO_COLOR[i.priority]};font-weight:bold">${i.priority}</td><td>${phaseLabel(i.phase)||'–'}</td><td style="color:${STATUS_COLOR[i.status]};font-weight:bold">${i.status}</td><td>${esc(i.assignee)}</td><td ${isOver(i)?'style="color:#be123c;font-weight:bold"':''}>${fmtDate(i.dueDate)}</td></tr>`).join('')}</table>`;
+ {const ns=o.notes===false?[]:notesFor(p,a);if(ns.length)h+=`<h2 class="pb">Notes</h2><div class="rn-page">${notesHTML(ns)}</div>`}
  if(items.length){h+=`<h2 class="pb">Issue details</h2>`;for(const i of items){const dr=i.pin&&byId('drawings',i.pin.drawingId);const figs=[];if(o.photos)for(const[n,id]of(i.photos||[]).entries()){const ph=await getPhoto(id);if(ph)figs.push(`<figure><img src="${ph.data}" alt=""></figure>`)}
   let main=figs.shift()||'';if(o.pinrefs&&dr){const c=await drawingCanvas(dr,[i],{crop:i.pin,maxW:600});figs.push(`<figure><img src="${c.toDataURL('image/jpeg',.85)}"></figure>`)}
   if(!main&&o.photos)main=figs.shift()||'<div class="noph">No photo</div>'; /* left column always reserved: photo, else drawing snapshot, else 'No photo' box; text always right */
@@ -1793,6 +1798,7 @@ const Sync={state:'idle',msg:'',
    if(store==='settings'){if((rec.updatedAt||0)>(S.settings.updatedAt||0)){S.settings={...rec,id:'main'};await DB.put('settings',S.settings);changed=true}continue}
    const arr=S[store],j=arr.findIndex(x=>x.id===id);
    if(store==='items'){const L=await DB.get('items',id);const M=L?itemMerge(L,rec):rec;if(!L||JSON.stringify(M)!==JSON.stringify(L)){const nw=JSON.parse(JSON.stringify(M));await DB.put('items',nw);itBase(nw);if(j<0)arr.push(nw);else arr[j]=nw;changed=true}continue}
+   if(j>=0&&(store==='projects'||store==='audits')&&typeof notesMerge==='function'){const M=notesMerge(arr[j],rec);if(M){await DB.put(store,M);arr[j]=M;changed=true}continue}
    if(j<0||(rec.updatedAt||0)>(arr[j].updatedAt||0)){await DB.put(store,rec);if(j<0)arr.push(rec);else arr[j]=rec;changed=true}}
   if(changed){cropCache.clear();if(key.startsWith('projects/'))await fixNumbers(key.slice(9))}return changed},
  build(key){const recs={},tombs={};const add=(s,r)=>{recs[s+':'+r.id]=r};
@@ -2716,9 +2722,9 @@ async function conDialog(pid){const p=byId('projects',pid),R=projRole(p);if(R.mo
   <div class="full"><span class="small muted">Inspections</span><div class="con-aud">${aus.map(a=>`<label class="chk"><input type="checkbox" name="aud" value="${a.id}" checked> ${esc(a.title)} <span class="muted small">${fmtDate(a.date)}</span></label>`).join('')||'<p class="help">No inspections yet.</p>'}</div></div>
   <label><span>Theme colour</span><select name="color">${themeOpts(p)}</select></label>
   
-  <label class="chk"><input type="checkbox" name="closed" checked> Include closed issues</label><label class="chk"><input type="checkbox" name="photos" checked> Photos</label><label class="chk"><input type="checkbox" name="charts" checked> Include charts</label></div>`,
+  <label class="chk"><input type="checkbox" name="closed" checked> Include closed issues</label><label class="chk"><input type="checkbox" name="photos" checked> Photos</label><label class="chk"><input type="checkbox" name="charts" checked> Include charts</label>${notesChk(p,null)}</div>`,
   buttons:[{label:'Cancel',value:null},{label:'CSV',value:'csv'},...(Dbx.connected()?[{label:'Save PDF to Dropbox',value:'dbx'}]:[]),{label:'Download PDF',value:'pdf',cls:'primary'}],
-  onOpen:(el,close)=>logoCheck(el.querySelector('#lgchk'),p,close),collect:(el,v)=>({v,o:{title:el.querySelector('[name=title]').value.trim()||p.name,color:el.querySelector('[name=color]').value,closed:el.querySelector('[name=closed]').checked,photos:el.querySelector('[name=photos]').checked,charts:el.querySelector('[name=charts]').checked,audits:$$('[name=aud]:checked',el).map(x=>x.value)}})});
+  onOpen:(el,close)=>logoCheck(el.querySelector('#lgchk'),p,close),collect:(el,v)=>({v,o:{title:el.querySelector('[name=title]').value.trim()||p.name,color:el.querySelector('[name=color]').value,closed:el.querySelector('[name=closed]').checked,photos:el.querySelector('[name=photos]').checked,charts:el.querySelector('[name=charts]').checked,notes:!!(el.querySelector('[name=notes]')||{}).checked,audits:$$('[name=aud]:checked',el).map(x=>x.value)}})});
  if(!r)return;if(!r.o.audits.length)return alertBox('Choose at least one inspection.');const d=conData(pid,r.o);
  if(r.v==='csv')return download(`${safeName(d.fileName)}.csv`,conCsvBlob(d.items,p));
  const toDbx=r.v==='dbx';const done=busy('Generating consolidated report…');try{const doc=await conPDF(d,r.o,{noDownload:toDbx});if(!toDbx)toast('PDF report downloaded');done();if(Dbx.connected()&&(toDbx||Dbx.prefs().autoPdf))await Sync.uploadReport(doc.output('blob'),d,r.o)}catch(e){console.error(e);alertBox('PDF generation failed: '+e.message)}finally{done()}}
@@ -2758,6 +2764,7 @@ async function conPDF(d,o,opt={}){await coFresh();const{jsPDF}=window.jspdf;cons
  /* cross-trade */
  newPage();heading('Cross-trade issues (flagged)');if(!d.flagged.length){font(9.5,'italic',GREY);T('No issues were flagged between trades.',M,y);y+=8}
  else table([['Ref',21],['Issue',36],['Flagged by',32],['From',20],['To',30],['Status',19],['Note',24]],d.flagged.map(i=>{const f=i.flag;return[issueRef(i),i.title||'Untitled',personLabel(p,f.byEmail,f.byName,f.byDesig),TRADE_TAG[f.fromTrade]||f.fromTrade||'–',(TRADE_TAG[f.toTrade]||f.toTrade)+(f.toName?' / '+f.toName:''),f.status,f.status==='returned'?f.returnNote||f.note:f.note]}),(v,c)=>c===5?(v[5]==='pending'?[217,119,6]:v[5]==='accepted'?[22,163,74]:[100,116,139]):null);
+ {const ns=o.notes===false?[]:notesFor(p,null);if(ns.length){const C_={doc,font,ensure,Y:()=>y,setY:v=>{y=v},M,PW:()=>PW,acc,DARK};newPage();heading('Notes');pdfNotes(C_,ns)}}
  /* issues by trade › subcategory */
  const items=d.items;const C={doc,M,font,T,PW:()=>PW,PH:()=>PH,newPage:()=>{newPage();return y}};if(items.length){newPage();heading('Issues by trade');let first=true;
   const lay=async it=>{const au=byId('audits',it.auditId);const f=[['Trade',it.category],['Subcategory',it.subcategory],['Defect type',it.defectType],['Location',it.location],['Raised by',raisedBy(it,p)],['Inspection',au&&au.title],['Logged',fmtDate(it.createdAt)],['Closed',it.status==='Closed'&&it.closedAt?fmtDate(it.closedAt):''],['Assignee',it.assignee],['Due date',fmtDate(it.dueDate)+(isOver(it)?' (OVERDUE)':'')]].filter(x=>x[1]);
@@ -3543,6 +3550,66 @@ async function repairSplit(id,ids){const it=byId('items',id);if(!it)return null;
  const cur=byId('items',id);cur.photos=(cur.photos||[]).filter(x=>!mv.includes(x));if(cur.photoSrc)for(const x of mv)delete cur.photoSrc[x];cur.splitTo=[...(cur.splitTo||[]),n.id];await save('items',cur);
  if(typeof cropCache!=='undefined')cropCache.clear();safeRender&&safeRender();return n.id}
 Object.assign(ACT,{'repair-open':el=>repairOpen(el.dataset.id)});
+
+/* ===== Report notes page (custom text after the summaries / charts, before the issues)
+ project.rptNotes = [{title, body}]  → default / template for the project's reports and inspections
+ audit.rptNotes   = [{title, body}]  → this inspection's own version (absent = inherit the project default)
+ body: paragraphs separated by blank lines, lines starting with "- " / "* " / "• " are bullets, **bold**.
+ Stored in project.json; audits / projects use the per-field merge (rptNotes is one field). */
+const notesClean=a=>(Array.isArray(a)?a:[]).map(s=>({title:String(s&&s.title||'').trim(),body:String(s&&s.body||'').replace(/\r/g,'').trim()})).filter(s=>s.title||s.body);
+const notesOwn=a=>!!a&&Array.isArray(a.rptNotes);
+function notesFor(p,a){return notesClean(a&&notesOwn(a)?a.rptNotes:p&&p.rptNotes)}
+function notesRuns(t){const out=[];String(t).split(/(\*\*[^*]+\*\*)/).forEach(x=>{if(!x)return;const b=/^\*\*[^*]+\*\*$/.test(x);out.push({t:b?x.slice(2,-2):x,b})});return out}
+function notesBlocks(body){const blocks=[];for(const para of String(body||'').split(/\n\s*\n/)){const lines=para.split('\n').map(l=>l.trimEnd()).filter(l=>l.trim());if(!lines.length)continue;let cur=null;
+  for(const l of lines){const m=l.match(/^\s*[-*•]\s+(.*)$/);if(m){if(!cur||cur.t!=='ul'){cur={t:'ul',items:[]};blocks.push(cur)}cur.items.push(notesRuns(m[1]))}else if(cur&&cur.t==='p'){cur.runs.push({t:' '},...notesRuns(l.trim()))}else{cur={t:'p',runs:notesRuns(l.trim())};blocks.push(cur)}}}
+ return blocks}
+const notesRunsHTML=r=>r.map(x=>x.b?`<b>${esc(x.t)}</b>`:esc(x.t)).join('');
+function notesHTML(secs){return secs.map(s=>`<section class="rn-sec">${s.title?`<h3>${esc(s.title)}</h3>`:''}${notesBlocks(s.body).map(b=>b.t==='ul'?`<ul>${b.items.map(r=>`<li>${notesRunsHTML(r)}</li>`).join('')}</ul>`:`<p>${notesRunsHTML(b.runs)}</p>`).join('')}</section>`).join('')}
+/* PDF: C = {doc,font,ensure(h),Y(),setY(v),M,PW(),acc,DARK} – flows over pages, never crops */
+function pdfNotes(C,secs){const{doc,font,M}=C;const W=()=>C.PW()-2*M,size=10,lh=4.9;
+ const words=runs=>{const w=[];let sp=true;for(const r of runs)for(const part of String(r.t).split(/(\s+)/)){if(!part)continue;if(/^\s+$/.test(part)){sp=true;continue}if(!sp&&w.length){const L=w[w.length-1];L.parts=L.parts||[{t:L.t,b:L.b}];L.parts.push({t:part,b:!!r.b});L.t+=part}else w.push({t:part,b:!!r.b});sp=false}return w};
+ const lineSet=(runs,x0,maxW)=>{const ws=words(runs),lines=[];let cur=[],wd=0;const tw=(t,b)=>{doc.setFont('helvetica',b?'bold':'normal');doc.setFontSize(size);return doc.getTextWidth(t)};const sp=tw(' ',false);
+  for(const w of ws){if(w.parts){const l=w.parts.reduce((a,x)=>a+tw(x.t,x.b),0);const add=(cur.length?sp:0)+l;if(cur.length&&wd+add>maxW){lines.push(cur);cur=[];wd=0}wd+=(cur.length?sp:0)+l;cur.push(w);continue}let t=w.t,l=tw(t,w.b);
+   while(l>maxW&&t.length>1){let k=t.length;while(k>1&&tw(t.slice(0,k),w.b)>maxW-(cur.length?wd+sp:0))k--;if(cur.length&&k<=1){lines.push(cur);cur=[];wd=0;continue}lines.push([...cur,{t:t.slice(0,k),b:w.b}]);cur=[];wd=0;t=t.slice(k);l=tw(t,w.b)}
+   const add=(cur.length?sp:0)+l;if(cur.length&&wd+add>maxW){lines.push(cur);cur=[];wd=0}wd+=(cur.length?sp:0)+l;cur.push({t,b:w.b})}
+  if(cur.length)lines.push(cur);return lines};
+ const draw=(line,x)=>{let xx=x;for(const[k,w]of line.entries()){font(size,w.b?'bold':'normal',C.DARK);if(k){doc.setFont('helvetica','normal');xx+=doc.getTextWidth(' ')}for(const x of(w.parts||[w])){font(size,x.b?'bold':'normal',C.DARK);doc.text(x.t,xx,C.Y());xx+=doc.getTextWidth(x.t)}}};
+ for(const s of secs){if(s.title){C.ensure(9+lh*2);font(12,'bold',C.acc);const tl=doc.splitTextToSize(s.title,W());for(const l of tl){C.ensure(6);doc.text(l,M,C.Y()+4);C.setY(C.Y()+6)}C.setY(C.Y()+1.5)}
+  for(const b of notesBlocks(s.body)){const items=b.t==='ul'?b.items:[b.runs];
+   for(const r of items){const x=b.t==='ul'?M+5:M;const lines=lineSet(r,x,W()-(x-M));
+    lines.forEach((ln,k)=>{C.ensure(lh+1);C.setY(C.Y()+lh-1);if(k===0&&b.t==='ul'){font(size,'bold',C.acc);doc.text('•',M+1.2,C.Y())}draw(ln,x);C.setY(C.Y()+1)});C.setY(C.Y()+(b.t==='ul'?0.8:2.4))}
+   if(b.t==='ul')C.setY(C.Y()+1.6)}
+  C.setY(C.Y()+4)}}
+/* ---- editor (admins) ---- */
+async function notesEditor(kind,id){const isA=kind==='audit';const a=isA?byId('audits',id):null,p=byId('projects',isA?a.projectId:id);if(!p)return;
+ if(!projRole(p).admin)return alertBox('Only a project admin can edit the report notes page.');
+ let own=isA?notesOwn(a):true;let secs=isA&&!own?notesClean(p.rptNotes):notesClean(isA?a.rptNotes:p.rptNotes);if(!secs.length)secs=[{title:'Disclaimer',body:''}];
+ const secHTML=(s,k)=>`<div class="rn-ed card pad" data-k="${k}" style="margin:8px 0"><div style="display:flex;gap:8px;align-items:center"><input class="rn-t" placeholder="Section title (e.g. Disclaimer)" value="${esc(s.title)}" style="flex:1"><button type="button" class="btn sm" data-rn="up" title="Move up">↑</button><button type="button" class="btn sm" data-rn="rm" title="Remove section">✕</button></div>
+  <textarea class="rn-b" rows="6" placeholder="Text… Blank line = new paragraph · start a line with “- ” for a bullet · **bold**" style="width:100%;margin-top:6px">${esc(s.body)}</textarea></div>`;
+ const body=()=>`${isA?`<label class="chk"><input type="checkbox" id="rn-own" ${own?'checked':''}> Use custom notes for this inspection <span class="muted small">(off = project default${notesClean(p.rptNotes).length?'':' – currently empty'})</span></label>`:`<p class="help" style="margin-top:0">Project default – used by the project / consolidated reports and by every inspection that does not have its own version.</p>`}
+  <div id="rn-list" ${isA&&!own?'style="opacity:.55;pointer-events:none"':''}>${secs.map(secHTML).join('')}</div><button type="button" class="btn sm" data-rn="add" ${isA&&!own?'disabled':''}>+ Add section</button>
+  <p class="help">Shown on its own page after the summary / charts, before the issues. Leave all sections empty to have no page. Formatting: blank line = new paragraph · “- ” bullet · **bold**.</p>`;
+ const read=el=>[...el.querySelectorAll('.rn-ed')].map(x=>({title:x.querySelector('.rn-t').value,body:x.querySelector('.rn-b').value}));
+ const r=await modal({title:isA?`Report notes – ${a.title}`:'Report notes – project default',wide:true,body:`<div id="rn-root">${body()}</div>`,
+  onOpen:el=>{const root=el.querySelector('#rn-root');const re=()=>{root.innerHTML=body()};
+   root.addEventListener('click',e=>{const b=e.target.closest('[data-rn]');if(!b)return;secs=read(root);const k=+((b.closest('.rn-ed')||{}).dataset||{}).k;
+    if(b.dataset.rn==='add')secs.push({title:'',body:''});else if(b.dataset.rn==='rm')secs.splice(k,1);else if(b.dataset.rn==='up'&&k>0)[secs[k-1],secs[k]]=[secs[k],secs[k-1]];re()});
+   root.addEventListener('change',e=>{if(e.target.id==='rn-own'){secs=read(root);own=e.target.checked;if(own&&!notesClean(secs).length)secs=notesClean(p.rptNotes).length?notesClean(p.rptNotes):[{title:'Disclaimer',body:''}];re()}})},
+  collect:el=>({own,secs:notesClean(read(el))})});
+ if(!r)return;if(isA){const cur=byId('audits',id);if(r.own)cur.rptNotes=r.secs;else cur.rptNotes=null;await save('audits',cur)}else{const cur=byId('projects',id);cur.rptNotes=r.secs;await save('projects',cur)}
+ toast('Report notes saved');render()}
+Object.assign(ACT,{'notes-edit':el=>notesEditor(el.dataset.kind,el.dataset.id)});
+/* rptNotes has its own field stamp (rptNotesAt) so it merges independently of the whole-record LWW used for projects / audits.
+ Older app versions keep unknown fields when they save, so rptNotes + rptNotesAt travel together. */
+async function notesPrepSave(store,o){const prev=await DB.get(store,o.id);if(!prev)return void(o.rptNotes!==undefined&&(o.rptNotesAt=Date.now()));
+ const pj=JSON.stringify(prev.rptNotes===undefined?null:prev.rptNotes),oj=JSON.stringify(o.rptNotes===undefined?null:o.rptNotes);
+ if((o.rptNotesAt||0)<(prev.rptNotesAt||0)){o.rptNotes=prev.rptNotes;o.rptNotesAt=prev.rptNotesAt;if(o.rptNotes===undefined)delete o.rptNotes;return} // stale copy: keep newer notes
+ if(pj!==oj)o.rptNotesAt=Date.now();else if(prev.rptNotesAt)o.rptNotesAt=prev.rptNotesAt}
+/* L = local, R = incoming. Returns the record to store, or null if nothing changes. */
+function notesMerge(L,R){const win=(R.updatedAt||0)>(L.updatedAt||0)?R:L,other=win===R?L:R;let out=win;
+ if((other.rptNotesAt||0)>(win.rptNotesAt||0)){out={...win,rptNotes:other.rptNotes,rptNotesAt:other.rptNotesAt};if(other.rptNotes===undefined)delete out.rptNotes}
+ return out===L?null:JSON.parse(JSON.stringify(out))}
+function notesChk(p,a){const n=notesFor(p,a).length;return n?`<label class="chk"><input type="checkbox" name="notes" checked> Notes page <span class="muted small">(${n} section${n>1?'s':''}${a&&notesOwn(a)?', this inspection':''})</span></label>`:`<input type="checkbox" name="notes" hidden><span class="small muted" style="align-self:center">No report notes page${projRole(p).admin?' – add one with “Notes page”':''}</span>`}
 
 </script>
 </body>
