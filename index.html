@@ -39492,7 +39492,7 @@ const TAXONOMY={
   'Low current (data, CCTV, access control, intercom)':['Not terminated','Not working','Missing device'],
   'Switches and dimmers':['Not working','Misaligned','Wrong location']},
  'Fire and life safety':{
-  'Fire alarm (detectors, call points, sounders)':['Missing','Damaged','Covered','Not working','Wrong location'],
+  'Fire alarm & detection':['Missing','Damaged','Covered','Not working','Wrong location'],
   'Sprinklers':['Head missing / damaged','Painted head','Obstruction','Leak','Missing escutcheon'],
   'Fire stopping and penetrations':['Missing','Incomplete','Unapproved material'],
   'Fire doors':['Gap too large','Closer not working','Damaged seals','Missing signage','Held open'],
@@ -39524,12 +39524,16 @@ const TAXONOMY={
   'Openings, cores and penetrations':['Unapproved core / opening','Opening not trimmed / reinforced','Damage around penetration'],
   'Water ingress and durability':['Water leak through structure','Efflorescence','Damp / wet concrete']}};
 const SUB_OTHER='__subother';
+/* Renamed built-in subcategories: old stored values still resolve (defects, filters, form). */
+const SUB_ALIASES={'Fire alarm (detectors, call points, sounders)':'Fire alarm & detection'};
+const subCanon=s=>{const v=String(s||'').trim();return SUB_ALIASES[v]||v};
+const subEq=(a,b)=>subCanon(a)===subCanon(b);
 /* custom subcategories per project + trade = the custom values already used on that project's issues (they live in project.json via the issues,
    so teammates see them; no new field, no project-record writes that could clobber team / role edits) */
-const projSubsCustom=(p,t)=>{if(!p||!t)return[];const fx=taxSubs(t),seen=new Map();for(const i of (typeof projItems==='function'?projItems(p.id):[])){const v=String(i.subcategory||'').trim();if(i.category===t&&v&&!fx.includes(v)&&!seen.has(v.toLowerCase()))seen.set(v.toLowerCase(),v)}return[...seen.values()].sort((x,y)=>x.localeCompare(y))};
+const projSubsCustom=(p,t)=>{if(!p||!t)return[];const fx=taxSubs(t),seen=new Map();for(const i of (typeof projItems==='function'?projItems(p.id):[])){const v=String(i.subcategory||'').trim();if(i.category===t&&v&&!fx.includes(v)&&!fx.includes(subCanon(v))&&!seen.has(v.toLowerCase()))seen.set(v.toLowerCase(),v)}return[...seen.values()].sort((x,y)=>x.localeCompare(y))};
 const taxTrades=()=>Object.keys(TAXONOMY);
 const taxSubs=t=>t&&TAXONOMY[t]?Object.keys(TAXONOMY[t]):[];
-const taxDefects=(t,s)=>t&&s&&TAXONOMY[t]&&TAXONOMY[t][s]?[...TAXONOMY[t][s].filter(x=>x!==TAX_OTHER),TAX_OTHER]:[];
+const taxDefects=(t,s)=>{if(!t||!s||!TAXONOMY[t])return[];const k=subCanon(s);const list=TAXONOMY[t][k]||TAXONOMY[t][s];return list?[...list.filter(x=>x!==TAX_OTHER),TAX_OTHER]:[]};
 const taxonomyList=()=>taxTrades().flatMap(t=>taxSubs(t).flatMap(s=>taxDefects(t,s).map(d=>({trade:t,subcategory:s,defectType:d}))));
 const subShort=s=>String(s||'').replace(/\s*\([^)]*\)\s*$/,'');
 const clsParts=i=>[i.category,i.subcategory,i.defectType].filter(Boolean);
@@ -39771,11 +39775,11 @@ function viewHome(){
 
 function itemRows(items,qual){if(!items.length)return`<div class="empty">No issues match.</div>`;
  return items.map(i=>{const a=byId('audits',i.auditId),dr=i.pin&&byId('drawings',i.pin.drawingId);return`<a class="row" href="#/item/${i.id}"><div class="thumb">${i.photos&&i.photos.length?`<img data-photo="${i.photos[0]}" alt="">`:ic('camera')}</div>
- <div class="grow"><div class="t"><span class="num">${qual?issueRef(i):issueNo(i)}</span>${esc(i.title||'Untitled issue')}</div><div class="meta">${i.location?`<span>${ic('pin')}${esc(i.location)}</span>`:''}${i.category?`<span class="cls" title="${esc(clsParts(i).join(' › '))}">${esc([i.category,subShort(i.subcategory)].filter(Boolean).join(' › '))}</span>`:''}${i.defectType?`<span class="defect">${esc(i.defectType)}</span>`:''}${i.assignee?`<span>${ic('user')}${esc(i.assignee)}</span>`:''}${i.dueDate?`<span class="${isOver(i)?'over':''}">${ic('cal')}${fmtDate(i.dueDate)}${isOver(i)?' (overdue)':''}</span>`:''}${UI.list&&UI.list.showAudit&&a?`<span>${ic('clip')}${esc(a.title)}</span>`:''}${i.photos&&i.photos.length>1?`<span>${ic('image')}${i.photos.length}</span>`:''}${i.flag?flagBadgeHTML(i):''}${itemByHTML(i)}</div></div>
+ <div class="grow"><div class="t"><span class="num">${qual?issueRef(i):issueNo(i)}</span>${esc(i.title||'Untitled issue')}</div><div class="meta">${i.location?`<span>${ic('pin')}${esc(i.location)}</span>`:''}${i.category?`<span class="cls" title="${esc(clsParts(i).join(' › '))}">${esc([i.category,subShort(subCanon(i.subcategory)||i.subcategory)].filter(Boolean).join(' › '))}</span>`:''}${i.defectType?`<span class="defect">${esc(i.defectType)}</span>`:''}${i.assignee?`<span>${ic('user')}${esc(i.assignee)}</span>`:''}${i.dueDate?`<span class="${isOver(i)?'over':''}">${ic('cal')}${fmtDate(i.dueDate)}${isOver(i)?' (overdue)':''}</span>`:''}${UI.list&&UI.list.showAudit&&a?`<span>${ic('clip')}${esc(a.title)}</span>`:''}${i.photos&&i.photos.length>1?`<span>${ic('image')}${i.photos.length}</span>`:''}${i.flag?flagBadgeHTML(i):''}${itemByHTML(i)}</div></div>
  <div class="ir-badges">${dr?`<span title="Pinned on ${esc(dr.name)}" style="color:var(--acc)">${ic('map')}</span>`:''}${phBadge(i.phase)}${prBadge(i.priority)}${stBadge(i.status)}</div></a>`}).join('')}
-function applyFilter(items,f){const q=(f.q||'').toLowerCase();let r=items.filter(i=>(!q||[i.title,i.description,i.location,i.category,i.subcategory,i.defectType,i.assignee,issueNo(i),issueRef(i)].join(' ').toLowerCase().includes(q))&&(!f.status||(f.status==='overdue'?isOver(i):f.status==='notclosed'?i.status!=='Closed':i.status===f.status))&&(!f.priority||i.priority===f.priority)&&(!f.phase||(f.phase==='none'?!i.phase:i.phase===f.phase))&&(!f.category||i.category===f.category)&&(!f.subcategory||i.subcategory===f.subcategory)&&(!f.defectType||i.defectType===f.defectType)&&(!f.assignee||i.assignee===f.assignee)&&(!f.location||i.location===f.location)&&(!f.flag||(f.flag==='tome'?flaggedToMe(i):f.flag==='byme'?!!i.flag&&eqEmail(i.flag.byEmail,myEmail()):f.flag==='returned'?!!i.flag&&i.flag.status==='returned':!!i.flag)));
+function applyFilter(items,f){const q=(f.q||'').toLowerCase();let r=items.filter(i=>(!q||[i.title,i.description,i.location,i.category,i.subcategory,i.defectType,i.assignee,issueNo(i),issueRef(i)].join(' ').toLowerCase().includes(q))&&(!f.status||(f.status==='overdue'?isOver(i):f.status==='notclosed'?i.status!=='Closed':i.status===f.status))&&(!f.priority||i.priority===f.priority)&&(!f.phase||(f.phase==='none'?!i.phase:i.phase===f.phase))&&(!f.category||i.category===f.category)&&(!f.subcategory||subEq(i.subcategory,f.subcategory))&&(!f.defectType||i.defectType===f.defectType)&&(!f.assignee||i.assignee===f.assignee)&&(!f.location||i.location===f.location)&&(!f.flag||(f.flag==='tome'?flaggedToMe(i):f.flag==='byme'?!!i.flag&&eqEmail(i.flag.byEmail,myEmail()):f.flag==='returned'?!!i.flag&&i.flag.status==='returned':!!i.flag)));
  const s={number:(a,b)=>numCmp(a,b),newest:(a,b)=>b.createdAt-a.createdAt,updated:(a,b)=>b.updatedAt-a.updatedAt,priority:(a,b)=>PRIO_RANK[a.priority]-PRIO_RANK[b.priority]||numCmp(a,b),phase:(a,b)=>PHASE_RANK(a.phase)-PHASE_RANK(b.phase)||PRIO_RANK[a.priority]-PRIO_RANK[b.priority]||numCmp(a,b),status:(a,b)=>STATUSES.indexOf(a.status)-STATUSES.indexOf(b.status)||numCmp(a,b),due:(a,b)=>(a.dueDate||'9999').localeCompare(b.dueDate||'9999'),location:(a,b)=>(a.location||'').localeCompare(b.location||'')||numCmp(a,b)}[f.sort||'number'];return r.sort(s)}
-function listToolbarHTML(f,items){const inT=items.filter(i=>!f.category||i.category===f.category),subs=uniq(inT.map(i=>i.subcategory)),defs=uniq(inT.filter(i=>!f.subcategory||i.subcategory===f.subcategory).map(i=>i.defectType));
+function listToolbarHTML(f,items){const inT=items.filter(i=>!f.category||i.category===f.category),subs=uniq(inT.map(i=>subCanon(i.subcategory||'')||i.subcategory).filter(Boolean)),defs=uniq(inT.filter(i=>!f.subcategory||subEq(i.subcategory,f.subcategory)).map(i=>i.defectType));
  const sel=(k,label,opts)=>`<select data-change="flt" data-k="${k}" aria-label="${label}"><option value="">${label}</option>${opts.map(o=>Array.isArray(o)?o:[o,o]).map(([v,t])=>`<option value="${esc(v)}" ${f[k]===v?'selected':''}>${esc(t)}</option>`).join('')}</select>`;
  return`<div class="list-toolbar"><input type="search" data-input="flt" data-k="q" value="${esc(f.q)}" placeholder="Search issues…">
  ${sel('status','All statuses',[...STATUSES,['notclosed','Not closed'],['overdue','Overdue']])}${sel('priority','All importance',PRIORITIES)}${sel('phase','All priorities',[...PHASES.map(p=>[p,'Phase '+p]),['none','Priority not set']])}${sel('category','All trades',uniq(items.map(i=>i.category)))}${subs.length||f.subcategory?sel('subcategory','All subcategories',subs.map(x=>[x,subShort(x)])):''}${defs.length||f.defectType?sel('defectType','All defect types',defs):''}${sel('location','All locations',uniq(items.map(i=>i.location)))}${sel('assignee','All assignees',uniq(items.map(i=>i.assignee)))}${items.some(i=>i.flag)||f.flag||items.some(i=>teamOn(byId('projects',i.projectId)))?sel('flag','All issues (flags)',[['tome','⚑ Flagged to me / my trade'],['byme','⚑ Flagged by me'],['returned','↩ Returned'],['any','⚑ Any cross-trade']]):''}
@@ -39790,8 +39794,8 @@ function tradeHTML(items,scopeKey){if(!items.some(i=>i.category))return'';const 
 function clsFieldsHTML(i,all){const pr=byId('projects',i.projectId),R=projRole(pr),rs=!!R.trades,T=tradesFor(i.projectId),inTax=taxTrades().includes(i.category),custom=!rs&&UI.clsOther===i.id,subs=taxSubs(i.category),defs=taxDefects(i.category,i.subcategory);
  const opt=(v,t,sl)=>`<option value="${esc(v)}" ${sl?'selected':''}>${esc(t)}</option>`,others=(rs?[i.category]:uniq([...cats(),...all.map(x=>x.category),i.category])).filter(x=>x&&!T.includes(x));
  let h=`<label><span>Trade${rs?` <small class="muted">(your trades)</small>`:''}</span><select name="category" data-change="cls-field">${opt('','— Select trade —',!i.category&&!custom)}${T.map(t=>opt(t,t,!custom&&t===i.category)).join('')}${others.length?`<optgroup label="Other trades">${others.map(t=>opt(t,t,!custom&&t===i.category)).join('')}</optgroup>`:''}${rs?'':opt('__other','Other (type a trade)…',custom)}${teamOn(pr)&&!R.ro?opt('__flag','⚑ Another trade – flag it…',false):''}</select>${custom?`<input name="categoryText" data-change="cls-field" placeholder="Type trade name" autocomplete="off">`:''}</label>`;
- if(inTax){const sOth=UI.subOther===i.id||(!!i.subcategory&&!subs.includes(i.subcategory)),cs=projSubsCustom(pr,i.category).filter(x=>x!==i.subcategory);
-  h+=`<label><span>Subcategory</span><select name="subcategory" data-change="cls-field">${opt('','— Select subcategory —',!i.subcategory&&!sOth)}${subs.map(x=>opt(x,x,!sOth&&x===i.subcategory)).join('')}${cs.length?`<optgroup label="Added by the team">${cs.map(x=>opt(x,x,!sOth&&x===i.subcategory)).join('')}</optgroup>`:''}${opt(SUB_OTHER,'Other (custom)…',sOth)}</select>${sOth?`<input name="subText" data-change="cls-field" value="${esc(i.subcategory||'')}" placeholder="Type a subcategory" autocomplete="off">`:''}</label>`}
+ if(inTax){const subSel=subCanon(i.subcategory||'');const sOth=UI.subOther===i.id||(!!i.subcategory&&!subs.includes(i.subcategory)&&!subs.includes(subSel)),cs=projSubsCustom(pr,i.category).filter(x=>x!==i.subcategory&&!subEq(x,i.subcategory));
+  h+=`<label><span>Subcategory</span><select name="subcategory" data-change="cls-field">${opt('','— Select subcategory —',!i.subcategory&&!sOth)}${subs.map(x=>opt(x,x,!sOth&&subEq(x,i.subcategory))).join('')}${cs.length?`<optgroup label="Added by the team">${cs.map(x=>opt(x,x,!sOth&&x===i.subcategory)).join('')}</optgroup>`:''}${opt(SUB_OTHER,'Other (custom)…',sOth)}</select>${sOth?`<input name="subText" data-change="cls-field" value="${esc(i.subcategory||'')}" placeholder="Type a subcategory" autocomplete="off">`:''}</label>`}
  else if(i.category)h+=`<label><span>Subcategory</span><input name="subcategory" data-change="cls-field" value="${esc(i.subcategory||'')}" placeholder="Optional"></label>`;
  else h+=`<label><span>Subcategory</span><select name="subcategory" disabled><option>Select a trade first</option></select></label>`;
  if(defs.length){const isO=!!i.defectType&&!defs.slice(0,-1).includes(i.defectType);h+=`<label><span>Defect type</span><select name="defectType" data-change="cls-field">${opt('','— Select defect type —',!i.defectType)}${defs.map(x=>opt(x,x,x===TAX_OTHER?isO:x===i.defectType)).join('')}</select>${isO?`<input name="defectText" data-change="cls-field" value="${esc(i.defectType===TAX_OTHER?'':i.defectType)}" placeholder="Describe the defect" autocomplete="off">`:''}</label>`}
@@ -40208,7 +40212,7 @@ ${RC_CSS}:root{--acc:${acc}}
  if(o.charts!==false&&all.length)h+=`<h2 class="pb">Executive summary</h2>${svgExecSummary(all,{acc,progress:rcSpansDays(all,d.audits)})}`;
  const items=d.items;if(o.summary&&items.length)h+=`<h2 class="pb">Summary of issues</h2><table><tr><th>#</th><th>Issue</th><th>Location</th><th>Trade</th><th>Importance</th><th>Priority</th><th>Status</th><th>Assignee</th><th>Due</th></tr>${items.map(i=>`<tr><td><b>${a?issueNo(i):issueRef(i)}</b></td><td>${esc(i.title)}</td><td>${esc(i.location)}</td><td>${esc(i.category)}${i.defectType?`<br><small>${esc(i.defectType)}</small>`:''}</td><td style="color:${PRIO_COLOR[i.priority]};font-weight:bold">${i.priority}</td><td>${phaseLabel(i.phase)||'–'}</td><td style="color:${STATUS_COLOR[i.status]};font-weight:bold">${i.status}</td><td>${esc(i.assignee)}</td><td ${isOver(i)?'style="color:#be123c;font-weight:bold"':''}>${fmtDate(i.dueDate)}</td></tr>`).join('')}</table>`;
  {const ns=o.notes===false?[]:notesFor(p,a);if(ns.length)h+=`<h2 class="pb">Notes</h2><div class="rn-page">${notesHTML(ns)}</div>`}
- if(items.length){h+=`<h2 class="pb">Issue details</h2>`;for(const i of items){const dr=i.pin&&byId('drawings',i.pin.drawingId);const figs=[];if(o.photos){const ids0=(i.photos||[]);const nPh=ids0.length;const maxHmm=nPh<=1?110:nPh===2?80:nPh===3?58:Math.max(36,Math.min(52,160/nPh));
+ if(items.length){h+=`<h2 class="pb">Issue details</h2>`;for(const i of items){const dr=i.pin&&byId('drawings',i.pin.drawingId);const figs=[];if(o.photos){const ids0=(i.photos||[]);const maxHmm=110;
   for(const[n,id]of ids0.entries()){const ph=await getPhoto(id);if(ph)figs.push(`<figure><img src="${ph.data}" alt="" style="max-height:${maxHmm}mm">${photoCap(i,id)?`<figcaption class="ucap">${esc(photoCap(i,id))}</figcaption>`:''}</figure>`)}}
   if(o.pinrefs&&dr){const c=await drawingCanvas(dr,[i],{crop:i.pin,maxW:600});figs.push(`<figure><img src="${c.toDataURL('image/jpeg',.85)}"></figure>`)}
   /* ALL photos (+ drawing crop) stack in the LEFT column; text always RIGHT. Never a photo on the right. */
@@ -40674,7 +40678,7 @@ const AI={
   if(v!=='stop')return null;const type=(rec.mimeType||mime||'audio/mp4').split(';')[0];const blob=new Blob(chunks,{type});
   if(Date.now()-t0<800||blob.size<500)throw new AIErr('mic','The recording was too short. Hold on a moment longer before tapping Stop.');return{blob,type}},
  /* Show a suggestion; the user picks what to apply. Never overwrites without an explicit, visible choice. */
- async suggest(it,s,opt={}){const T=tradesFor(it.projectId),oos=s.outOfScopeTrade&&s.outOfScopeTrade!=='None'&&taxTrades().includes(s.outOfScopeTrade)&&!T.includes(s.outOfScopeTrade)?s.outOfScopeTrade:'',okTrade=T.includes(s.trade),okSub=okTrade&&taxSubs(s.trade).includes(s.subcategory),pc=Math.round((+s.confidence||0)*100);
+ async suggest(it,s,opt={}){const T=tradesFor(it.projectId),oos=s.outOfScopeTrade&&s.outOfScopeTrade!=='None'&&taxTrades().includes(s.outOfScopeTrade)&&!T.includes(s.outOfScopeTrade)?s.outOfScopeTrade:'',okTrade=T.includes(s.trade),okSub=okTrade&&(taxSubs(s.trade).includes(s.subcategory)||taxSubs(s.trade).includes(subCanon(s.subcategory))),pc=Math.round((+s.confidence||0)*100);
   const cls=okTrade?[s.trade,okSub?s.subcategory:'',okSub?s.defectType:''].filter(Boolean):[],curCls=clsParts(it);
   const row=(k,label,val,cur,checked,note)=>`<label class="ai-row"><input type="checkbox" name="${k}" ${checked?'checked':''}><div><small>${label}</small><div class="ai-v">${val}</div>${note||''}</div></label>`;
   const rep=c=>`<div class="ai-rep">Currently: ${esc(c)} – tick to replace</div>`;
@@ -40689,7 +40693,7 @@ const AI={
   const r=await modal({title:'AI suggestion',body,buttons:[{label:'Dismiss',value:null},...(oos&&teamOn(byId('projects',it.projectId))?[{label:'Flag to '+(TRADE_TAG[oos]||oos),value:'flag'}]:[]),{label:'Apply',value:'apply',cls:'primary'}],collect:(el,v)=>v&&({v,cls:!!el.querySelector('[name=cls]:checked'),title:!!el.querySelector('[name=title]:checked'),desc:!!el.querySelector('[name=desc]:checked')})});
   if(!r)return false;const cur=byId('items',it.id)||it;let n=0;
   if(r.v==='flag'){if(r.title&&s.title&&!cur.title)cur.title=s.title;if(r.desc&&s.description&&!cur.description)cur.description=s.description;await save('items',cur);const fd=flagDialog(cur);setTimeout(()=>{const sel=$('.modal-back:last-child [name=toTrade]');if(sel){sel.value=oos;sel.dispatchEvent(new Event('change'))}},50);return fd}
-  if(r.cls&&cls.length){cur.category=s.trade;cur.subcategory=okSub?s.subcategory:'';cur.defectType=okSub?s.defectType:'';UI.clsOther=null;UI.subOther=null;n++}
+  if(r.cls&&cls.length){cur.category=s.trade;cur.subcategory=okSub?(taxSubs(s.trade).includes(subCanon(s.subcategory))?subCanon(s.subcategory):s.subcategory):'';cur.defectType=okSub?s.defectType:'';UI.clsOther=null;UI.subOther=null;n++}
   if(r.title&&s.title){cur.title=s.title;n++}
   if(r.desc&&s.description){cur.description=cur.description?cur.description.replace(/\s+$/,'')+'\n\n'+s.description:s.description;n++}
   if(!n)return false;await save('items',cur);toast('AI suggestion applied');render();return true},
@@ -40816,8 +40820,8 @@ async function impThumb(p){try{if(p.src.t==='file'){let bm;try{bm=await createIm
  const el=$(`.imp-th[data-pid="${p.id}"]`);if(el){const im=el.querySelector('img');if(im&&p.thumb!=='x'){im.src=p.thumb;im.hidden=false}}}
 /* ---------- Analysis runner (1–2 at a time, pause / cancel, automatic wait on 429 / busy) ---------- */
 const impNoDefect=s=>s&&(s.defectVisible===false||(s.trade==='Other'&&/\bno (visible )?(construction )?(defect|issue|damage)/i.test((s.title||'')+' '+(s.description||''))));
-function impRowFrom(p){const s=p.res||{};const a=byId('audits',IMP.aid),pid=a&&a.projectId,TT=tradesFor(pid);const okT=TT.includes(s.trade),oos=s.outOfScopeTrade&&s.outOfScopeTrade!=='None'&&taxTrades().includes(s.outOfScopeTrade)&&!TT.includes(s.outOfScopeTrade)&&teamOn(byId('projects',pid))?s.outOfScopeTrade:'',okS=okT&&taxSubs(s.trade).includes(s.subcategory);
- return{id:'r'+uid(),ord:IMP.all.indexOf(p),pids:[p.id],title:s.title||'',desc:s.description||'',trade:okT?s.trade:'',sub:okS?s.subcategory:'',def:okS&&taxDefects(s.trade,s.subcategory).includes(s.defectType)?s.defectType:'',
+function impRowFrom(p){const s=p.res||{};const a=byId('audits',IMP.aid),pid=a&&a.projectId,TT=tradesFor(pid);const okT=TT.includes(s.trade),oos=s.outOfScopeTrade&&s.outOfScopeTrade!=='None'&&taxTrades().includes(s.outOfScopeTrade)&&!TT.includes(s.outOfScopeTrade)&&teamOn(byId('projects',pid))?s.outOfScopeTrade:'',okS=okT&&(taxSubs(s.trade).includes(s.subcategory)||taxSubs(s.trade).includes(subCanon(s.subcategory)));
+ return{id:'r'+uid(),ord:IMP.all.indexOf(p),pids:[p.id],title:s.title||'',desc:s.description||'',trade:okT?s.trade:'',sub:okS?(taxSubs(s.trade).includes(subCanon(s.subcategory))?subCanon(s.subcategory):s.subcategory):'',def:okS&&taxDefects(s.trade,s.subcategory).includes(s.defectType)?s.defectType:'',
   conf:p.res?+s.confidence||0:null,noDef:p.res?impNoDefect(s)&&!oos:false,obs:s.otherObservations||[],err:p.err||null,inc:!p.err,ai:!!p.res,flagTo:oos,doFlag:!!oos}}
 async function impAnalyze(){const ps=impSel();if(!ps.length)return;ps.forEach(p=>{if(p.state!=='done'){p.state='queued';p.err=null}});
  const R=IMP.run={active:true,paused:false,cancel:false,wait:0,why:'',msg:'',busyN:0,ids:ps.map(p=>p.id),t0:Date.now()};IMP.step='run';impPaint();
@@ -40905,7 +40909,7 @@ function impRunHTML(){const R=IMP.run,ps=IMP.all.filter(p=>R.ids.includes(p.id))
  ${impWarnHTML(0)}</div>
  <div class="imp-mini">${ps.filter(p=>p.state==='done'||p.state==='error').map(p=>`<div class="imp-mrow"><img ${p.thumb&&p.thumb!=='x'?`src="${p.thumb}"`:'hidden'} alt=""><div><b>${esc(p.res?p.res.title:p.name)}</b><small>${p.res?esc([p.res.trade,p.res.subcategory,p.res.defectType].filter(x=>x&&x!=='Other').join(' › ')||'—')+' · '+Math.round((p.res.confidence||0)*100)+'%':'<span class="c-open">'+esc(p.err||'Failed')+'</span>'}</small></div></div>`).join('')}</div>`}
 function impReviewHTML(){const rows=IMP.rows,eff=rows.filter(impEff),noD=rows.filter(r=>r.noDef).length,selN=rows.filter(r=>r.sel).length,low=eff.filter(r=>r.conf!=null&&r.conf<0.5&&!r.noDef).length;
- const opt=(list,v)=>['',...list].map(o=>`<option value="${esc(o)}" ${o===v?'selected':''}>${esc(o?subShort(o):'—')}</option>`).join('');const au=byId('audits',IMP.aid),TT=tradesFor(au&&au.projectId);
+ const opt=(list,v)=>['',...list].map(o=>`<option value="${esc(o)}" ${o===v||(o&&v&&typeof subEq==='function'&&subEq(o,v))?'selected':''}>${esc(o?subShort(o):'—')}</option>`).join('');const au=byId('audits',IMP.aid),TT=tradesFor(au&&au.projectId);
  return`<div class="card pad imp-top"><div class="imp-sum"><b>${rows.length} result${rows.length===1?'':'s'}</b> from ${esc(IMP.label)}${low?` · <span class="c-open">${low} low-confidence to check</span>`:''}</div>
  <div class="imp-opts"><label class="chk"><input type="checkbox" data-change="imp-skipno" ${IMP.skipNo?'checked':''}> Skip photos where no defect was detected${noD?` (${noD})`:''}</label>
  <label class="chk"><input type="checkbox" data-change="imp-group" ${IMP.group?'checked':''}> Group similar photos into one issue <span class="help">(consecutive photos with the same trade › subcategory › defect)</span></label></div>
@@ -41400,8 +41404,8 @@ function conData(pid,o){const p=byId('projects',pid),R=projRole(p);const audits=
  const all=S.items.filter(i=>ids.has(i.auditId)&&canSeeItem(i,R));const items=(o.closed?all:all.filter(i=>i.status!=='Closed')).slice().sort(numCmp); // trade group (ARC, STR, MEC, ELE, FLS, others), then inspection, then number
  const flagged=all.filter(i=>i.flag).sort((a,b)=>numCmp(a,b));
  return{project:p,audits,audit:null,allItems:all,items,flagged,full:R.admin,role:R,checklists:[],drawings:S.drawings.filter(d=>d.projectId===pid),fileName:`${p.code||dbxName(p.name)} Consolidated report ${today()}`}}
-const subOrder=i=>{const s=taxSubs(i.category).indexOf(i.subcategory);return s<0?999:s};
-function conSubGroups(items){const g=new Map();for(const i of items){const t=i.category||'Unclassified',s=i.subcategory||'—';if(!g.has(t))g.set(t,new Map());const m=g.get(t);if(!m.has(s))m.set(s,[]);m.get(s).push(i)}return g}
+const subOrder=i=>{const s=taxSubs(i.category).indexOf(subCanon(i.subcategory));return s<0?999:s};
+function conSubGroups(items){const g=new Map();for(const i of items){const t=i.category||'Unclassified',s=(i.subcategory?subCanon(i.subcategory):'')||'—';if(!g.has(t))g.set(t,new Map());const m=g.get(t);if(!m.has(s))m.set(s,[]);m.get(s).push(i)}return g}
 /* sections = trade groups (prefix), issues in number order inside (subcategory is shown on every issue) */
 function conGroups(items){const g=new Map();for(const i of items){const t=itemPfx(i);if(!g.has(t))g.set(t,new Map([['',[]]]));g.get(t).get('').push(i)}return g}
 const conGroupTitle=(t,list)=>{const n=[...new Set(list.map(i=>i.category||'No trade'))];return t+' · '+n.join(' / ')};
@@ -41620,23 +41624,26 @@ async function pdfChrome(doc,co,{M,left,font,T}){const n=doc.getNumberOfPages(),
  LEFT column ≈47 %: photos stack here whenever text is on the RIGHT.
  Pack as many photos as fit in the left column of the SAME page as the text
  (shrink to fill the column / match text height) – never one photo + empty left
- while more photos wait for the next page.
+ Full-size photos (≤110 mm) – never shrink to pack. Spill to next page.
  Photo-only continuation pages (no right-column text left): full-width 2-col grid.
  Captions under their photo. No-photo → "No photo" box left. */
 const PDF_PH_MAX=110,PDF_PH_MIN=36;
 function pdfImgDims(doc,im){if(!im._dim){let w=0,h=0;try{const p=doc.getImageProperties(im.data);w=p.width;h=p.height}catch(e){}if(!(w>0&&h>0)){w=im.w;h=im.h}if(!(w>0&&h>0))throw new Error('photo has no size');im._dim={w,h}}return im._dim}
 function pdfFit(doc,im,colW,maxH){const d=pdfImgDims(doc,im);const cap=maxH==null?PDF_PH_MAX:maxH;let w=colW,h=colW*d.h/d.w;if(h>cap){h=cap;w=h*d.w/d.h}return{w,h,dx:(colW-w)/2}}
 const PDF_NOPH_H=34;
-/** Pack as many photos as will fit into maxH mm of the left column (shrink evenly). */
+/** Pack as many FULL-SIZE photos as fit into maxH mm (never shrink to fill the page). Spill the rest to the next page. */
 function pdfPackLeft(doc,imgs,colW,maxH,_CL,CAP){const n0=imgs.length;if(!n0||maxH<PDF_PH_MIN)return[];
- let best=[];
- for(let k=1;k<=n0;k++){
-  const gaps=(k-1)*CAP;let lo=PDF_PH_MIN,hi=PDF_PH_MAX,ok=null;
-  for(let iter=0;iter<12;iter++){const mid=(lo+hi)/2;const trial=[];let tot=0,fit=true;
-   for(let i=0;i<k;i++){const im=imgs[i],F=pdfFit(doc,im,colW,mid);doc.setFont('helvetica','italic');doc.setFontSize(8);const cl=im.ucap?doc.splitTextToSize(String(im.ucap),Math.max(F.w,20)):[];const ch=cl.length?cl.length*3.5+1.2:0,h=F.h+ch+CAP;trial.push({im,F,ch,h});tot+=h}
-   if(tot<=maxH+0.6){ok=trial;lo=mid}else hi=mid}
-  if(ok&&ok.every(t=>t.F.w>=32))best=ok;else if(!ok)break}
- return best}
+ const out=[];let tot=0;
+ for(let i=0;i<n0;i++){
+  const im=imgs[i],F=pdfFit(doc,im,colW,PDF_PH_MAX);
+  doc.setFont('helvetica','italic');doc.setFontSize(8);
+  const cl=im.ucap?doc.splitTextToSize(String(im.ucap),Math.max(F.w,20)):[];
+  const ch=cl.length?cl.length*3.5+1.2:0,h=F.h+ch+CAP;
+  if(out.length&&tot+h>maxH+0.6)break;
+  out.push({im,F,ch,h});tot+=h;
+  if(tot>maxH+0.6)break; /* first photo taller than leftover space → still place it (caller may newPage after) */
+ }
+ return out}
 async function pdfIssueLayout(C,fields,blocks,photos,extras,per,opt={}){const{doc,M,font,T}=C,GREY=[110,120,135],DARK=[30,36,48];
  const W=C.PW()-2*M,gap=6,all=[...photos,...extras],main=all[0]||null,noph=!main&&!!opt.reserve,left=!!(main||noph);
  const lw=Math.round(W*.47),rx=M+(left?lw+gap:0),rw=W-(left?lw+gap:0),pairs=left?1:2,pw=(rw-(pairs-1)*6)/pairs,labW=Math.min(30,pw*.36),valW=pw-labW-2;
@@ -41650,7 +41657,7 @@ async function pdfIssueLayout(C,fields,blocks,photos,extras,per,opt={}){const{do
  for(const p of rich)rightItems.push(p);
  const rightH=rightItems.reduce((a,r)=>a+r.h,0);
  /* estimate first-page left fill for keep-with-header */
- const pageH0=()=>C.PH()-16;const firstPack=all.length?pdfPackLeft(doc,all,lw,Math.min(pageH0()-20,Math.max(rightH,60)),CL,CAP):[];
+ const pageH0=()=>C.PH()-16;const firstPack=all.length?pdfPackLeft(doc,all,lw,pageH0()-20,CL,CAP):[];
  const firstLH=firstPack[0]?firstPack[0].h:(noph?PDF_NOPH_H+2:0);
  const leftHEst=firstPack.reduce((a,x)=>a+x.h,0)||(noph?PDF_NOPH_H+2:0);
  return{h:Math.max(leftHEst,rightH),topH:Math.min(Math.max(firstLH,Math.min(rightH,60)),firstLH||24||60),
@@ -41664,7 +41671,7 @@ async function pdfIssueLayout(C,fields,blocks,photos,extras,per,opt={}){const{do
     if(hasRight){
      /* how much right text fits this page */
      let rH=0,rN=0;for(let i=ri;i<rightItems.length;i++){const it=rightItems[i];if(rN&&ry-y+rH+it.h>avail&&rH>0)break;if(!rN&&it.h>avail){rN=1;rH=it.h;break}rH+=it.h;rN++;}
-     /* pack photos into the FULL left column height for this page (fill empty space beside tall text) */
+     /* place as many full-size photos as fit beside text this page; remainder spill to next page */
      const pack=pdfPackLeft(doc,all.slice(pi),lw,avail,CL,CAP);
      for(const t of pack){ly+=drawPhoto(t.im,t.F,ly);pi++;progressed=true}
      for(let i=0;i<rN;i++){const it=rightItems[ri];it.draw(ry);ry+=it.h;ri++;progressed=true}
