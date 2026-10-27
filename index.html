@@ -40191,15 +40191,16 @@ h2{color:${acc};border-bottom:2px solid ${acc};padding-bottom:4px;margin:24px 0 
 table{width:100%;border-collapse:collapse;font-size:9pt}th{background:${acc};color:#fff;text-align:left;padding:5px}td{padding:5px;border-bottom:1px solid #e2e8f0;vertical-align:top}tr:nth-child(even) td{background:#f6f8fb}
 .item{break-inside:avoid;page-break-inside:avoid;margin-bottom:16px;border-bottom:1px solid #e2e8f0;padding-bottom:12px}.ih{background:${lt};border-left:5px solid ${acc};padding:7px 10px;font-weight:bold;font-size:12pt;display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.ih>span:first-child{flex:1;min-width:0;overflow-wrap:anywhere}.ih>span:last-child{flex:none;white-space:nowrap}.ih .n{color:${acc}}
 .fields{display:grid;grid-template-columns:repeat(3,1fr);gap:6px 12px;margin:8px 0}.fields small{display:block;color:#778;font-size:7.5pt;font-weight:bold;text-transform:uppercase}.ib{display:grid;grid-template-columns:47% 1fr;gap:14px;margin-top:8px;align-items:start}.ib.nophoto{grid-template-columns:1fr}
-.noph{height:34mm;border:1px solid #e2e8f0;background:#f4f6f9;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#969eaa;font-size:9pt}.ib .main figure{margin:0 0 8px;break-inside:avoid;page-break-inside:avoid}.ib .main img{width:auto;max-width:100%;height:auto;max-height:110mm;display:block;margin:0 auto}.ib .main figcaption.ucap{font-style:italic;font-weight:normal;margin-top:3px;color:#475569}.kv{display:grid;grid-template-columns:28mm 1fr;gap:3px 8px;font-size:9.5pt}.nophoto .kv{grid-template-columns:28mm 1fr 28mm 1fr}.kv small,small.bl{color:#778;font-size:7.5pt;font-weight:bold;text-transform:uppercase;padding-top:2px}small.bl{display:block;margin-top:10px}.kv .over{color:#be123c;font-weight:bold}figcaption{font-size:8pt;color:#667}.desc p{margin:0 0 6px}.desc ul,.desc ol{margin:0 0 8px 18px;padding:0}.desc li{margin:2px 0}
+.noph{height:34mm;border:1px solid #e2e8f0;background:#f4f6f9;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#969eaa;font-size:9pt}.ib .main figure{margin:0 0 8px;break-inside:avoid;page-break-inside:avoid}.ib .main img{width:auto;max-width:100%;height:auto;max-height:110mm;display:block;margin:0 auto}.ib .main figcaption.ucap{font-style:italic;font-weight:normal;margin-top:3px;color:#475569}.kv{display:grid;grid-template-columns:28mm 1fr;gap:3px 8px;font-size:9.5pt}.nophoto .kv{grid-template-columns:28mm 1fr 28mm 1fr}.kv small,small.bl{color:#778;font-size:7.5pt;font-weight:bold;text-transform:uppercase;padding-top:2px}small.bl{display:block;margin-top:10px}.kv .over{color:#be123c;font-weight:bold}figcaption{font-size:8pt;color:#667}.desc p{margin:0 0 6px}.desc ul,.desc ol{margin:0 0 8px 18px;padding:0}.desc li{margin:2px 0}.desc b{font-weight:700}.desc u{text-decoration:underline}
 ${RC_CSS}:root{--acc:${acc}}
-.chip{color:#fff;border-radius:4px;padding:1px 7px;font-size:8.5pt;margin-left:4px;white-space:nowrap}.pb{break-before:page;page-break-before:always}.dw img{max-width:100%;max-height:235mm;display:block;margin:auto;border:1px solid #ccd}.desc{white-space:pre-wrap}.sec td{background:${lt}!important;font-weight:bold;color:${acc}}
+.chip{color:#fff;border-radius:4px;padding:1px 7px;font-size:8.5pt;margin-left:4px;white-space:nowrap}.pb{break-before:page;page-break-before:always}.dw img{max-width:100%;max-height:235mm;display:block;margin:auto;border:1px solid #ccd}.desc{white-space:normal}.sec td{background:${lt}!important;font-weight:bold;color:${acc}}
 </style></head><body><div class="cover"><div><div style="font-weight:bold;letter-spacing:.06em">${esc((o.subtitle||'').toUpperCase())}</div><h1>${esc(o.title)}</h1><div>${esc([p.client,p.address].filter(Boolean).join(' · '))}</div>${co.name?`<div class="co">Inspecting company: ${esc(co.name)}</div>`:''}</div>${logo||clogo?`<div class="lgs">${logo?`<div class="lg"><img src="${logo}" alt="${esc(co.name)}"></div>`:''}${clogo?`<div class="lg"><img src="${clogo}" alt=""></div>`:''}</div>`:''}</div>${logo||co.name?`<div class="runhead">${logo?`<img src="${logo}" alt="">`:''}<b>${esc(co.name||'')}</b><span>${esc(o.title||p.name)}</span></div>`:''}
 <dl>${kv.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl><div class="stats"><div><b>${all.length}</b>Total</div><div><b style="color:#dc2626">${cnt('Open')}</b>Open</div><div><b style="color:#d97706">${cnt('In Progress')}</b>In progress</div><div><b style="color:#16a34a">${cnt('Closed')}</b>Closed</div><div><b style="color:#9f1239">${all.filter(isOver).length}</b>Overdue</div></div>${tradeCounts(all).length?`<p style="font-size:9pt;color:#556"><b>Issues by trade:</b> ${tradeCounts(all).map(([t,n])=>esc(t)+' '+n).join(' · ')}</p>`:''}${[a?a.notes:'',p.notes].filter(Boolean).map(n=>`<p class="desc">${esc(n)}</p>`).join('')}`;
  if(o.charts!==false&&all.length)h+=`<h2 class="pb">Executive summary</h2>${svgExecSummary(all,{acc,progress:rcSpansDays(all,d.audits)})}`;
  const items=d.items;if(o.summary&&items.length)h+=`<h2 class="pb">Summary of issues</h2><table><tr><th>#</th><th>Issue</th><th>Location</th><th>Trade</th><th>Importance</th><th>Priority</th><th>Status</th><th>Assignee</th><th>Due</th></tr>${items.map(i=>`<tr><td><b>${a?issueNo(i):issueRef(i)}</b></td><td>${esc(i.title)}</td><td>${esc(i.location)}</td><td>${esc(i.category)}${i.defectType?`<br><small>${esc(i.defectType)}</small>`:''}</td><td style="color:${PRIO_COLOR[i.priority]};font-weight:bold">${i.priority}</td><td>${phaseLabel(i.phase)||'–'}</td><td style="color:${STATUS_COLOR[i.status]};font-weight:bold">${i.status}</td><td>${esc(i.assignee)}</td><td ${isOver(i)?'style="color:#be123c;font-weight:bold"':''}>${fmtDate(i.dueDate)}</td></tr>`).join('')}</table>`;
  {const ns=o.notes===false?[]:notesFor(p,a);if(ns.length)h+=`<h2 class="pb">Notes</h2><div class="rn-page">${notesHTML(ns)}</div>`}
- if(items.length){h+=`<h2 class="pb">Issue details</h2>`;for(const i of items){const dr=i.pin&&byId('drawings',i.pin.drawingId);const figs=[];if(o.photos)for(const[n,id]of(i.photos||[]).entries()){const ph=await getPhoto(id);if(ph)figs.push(`<figure><img src="${ph.data}" alt="">${photoCap(i,id)?`<figcaption class="ucap">${esc(photoCap(i,id))}</figcaption>`:''}</figure>`)}
+ if(items.length){h+=`<h2 class="pb">Issue details</h2>`;for(const i of items){const dr=i.pin&&byId('drawings',i.pin.drawingId);const figs=[];if(o.photos){const ids0=(i.photos||[]);const nPh=ids0.length;const maxHmm=nPh<=1?110:nPh===2?80:nPh===3?58:Math.max(36,Math.min(52,160/nPh));
+  for(const[n,id]of ids0.entries()){const ph=await getPhoto(id);if(ph)figs.push(`<figure><img src="${ph.data}" alt="" style="max-height:${maxHmm}mm">${photoCap(i,id)?`<figcaption class="ucap">${esc(photoCap(i,id))}</figcaption>`:''}</figure>`)}}
   if(o.pinrefs&&dr){const c=await drawingCanvas(dr,[i],{crop:i.pin,maxW:600});figs.push(`<figure><img src="${c.toDataURL('image/jpeg',.85)}"></figure>`)}
   /* ALL photos (+ drawing crop) stack in the LEFT column; text always RIGHT. Never a photo on the right. */
   let left='';if(figs.length)left=figs.join('');else if(o.photos)left='<div class="noph">No photo</div>';
@@ -41606,39 +41607,86 @@ async function pdfChrome(doc,co,{M,left,font,T}){const n=doc.getNumberOfPages(),
    doc.line(M,h-12.5,w-M,h-12.5)}
   font(7.5,'normal',[130,140,155]);T(doc.splitTextToSize(left,w/2-M-10)[0],M,h-8);const mid=[co.name,co.footer].filter(Boolean).join(' · ');if(mid)T(doc.splitTextToSize(mid,w/3)[0],w/2,h-8,{align:'center'});T(`Page ${i} of ${n}`,w-M,h-8,{align:'right'});
   if(line){font(6.5,'normal',[150,158,170]);T(doc.splitTextToSize(line,w-2*M)[0],w/2,h-4,{align:'center'})}}}
-/* ---- PDF issue block body (all PDF reports): EVERY photo (main + extras + drawing crop) stacks in the
- LEFT column (≈47 % width); ALL text (fields, description, flag) stays in the RIGHT column. Never a photo on
- the right. Tall photos capped at PDF_PH_MAX mm (then narrower, centred). Captions (user-written only) sit
- under their own photo in the left column. No-photo → left shows drawing crop or a "No photo" box.
- Columns page-break independently: leftover photos keep stacking left on the next page; leftover text keeps
- flowing right. */
-const PDF_PH_MAX=110;
+/* ---- PDF issue block body (all PDF reports):
+ LEFT column ≈47 %: photos stack here whenever text is on the RIGHT.
+ Pack as many photos as fit in the left column of the SAME page as the text
+ (shrink to fill the column / match text height) – never one photo + empty left
+ while more photos wait for the next page.
+ Photo-only continuation pages (no right-column text left): full-width 2-col grid.
+ Captions under their photo. No-photo → "No photo" box left. */
+const PDF_PH_MAX=110,PDF_PH_MIN=36;
 function pdfImgDims(doc,im){if(!im._dim){let w=0,h=0;try{const p=doc.getImageProperties(im.data);w=p.width;h=p.height}catch(e){}if(!(w>0&&h>0)){w=im.w;h=im.h}if(!(w>0&&h>0))throw new Error('photo has no size');im._dim={w,h}}return im._dim}
-function pdfFit(doc,im,colW){const d=pdfImgDims(doc,im);let w=colW,h=colW*d.h/d.w;if(h>PDF_PH_MAX){h=PDF_PH_MAX;w=h*d.w/d.h}return{w,h,dx:(colW-w)/2}}
+function pdfFit(doc,im,colW,maxH){const d=pdfImgDims(doc,im);const cap=maxH==null?PDF_PH_MAX:maxH;let w=colW,h=colW*d.h/d.w;if(h>cap){h=cap;w=h*d.w/d.h}return{w,h,dx:(colW-w)/2}}
 const PDF_NOPH_H=34;
+/** Pack as many photos as will fit into maxH mm of the left column (shrink evenly). */
+function pdfPackLeft(doc,imgs,colW,maxH,CL,CAP){const n0=imgs.length;if(!n0||maxH<PDF_PH_MIN)return[];
+ let best=[];
+ for(let k=1;k<=n0;k++){
+  const gaps=(k-1)*CAP;let lo=PDF_PH_MIN,hi=PDF_PH_MAX,ok=null;
+  for(let iter=0;iter<12;iter++){const mid=(lo+hi)/2;const trial=[];let tot=0,fit=true;
+   for(let i=0;i<k;i++){const im=imgs[i],F=pdfFit(doc,im,colW,mid),ch=(CL.get(im)||[]).length?((CL.get(im).length)*3.5+1.2):0,h=F.h+ch+CAP;trial.push({im,F,ch,h});tot+=h}
+   if(tot<=maxH+0.6){ok=trial;lo=mid}else hi=mid}
+  if(ok&&ok.every(t=>t.F.w>=32))best=ok;else if(!ok)break}
+ return best}
 async function pdfIssueLayout(C,fields,blocks,photos,extras,per,opt={}){const{doc,M,font,T}=C,GREY=[110,120,135],DARK=[30,36,48];
  const W=C.PW()-2*M,gap=6,all=[...photos,...extras],main=all[0]||null,noph=!main&&!!opt.reserve,left=!!(main||noph);
  const lw=Math.round(W*.47),rx=M+(left?lw+gap:0),rw=W-(left?lw+gap:0),pairs=left?1:2,pw=(rw-(pairs-1)*6)/pairs,labW=Math.min(30,pw*.36),valW=pw-labW-2;
  const f=fields.filter(x=>x[1]!=null&&String(x[1]).trim()!=='');const rows=[];
  for(let k=0;k<f.length;k+=pairs){const cells=f.slice(k,k+pairs).map(([l,v])=>{font(9,'normal');const ls=doc.splitTextToSize(String(v),valW).slice(0,4);return{l,ls,red:/OVERDUE/.test(String(v))}});rows.push({cells,h:Math.max(...cells.map(c=>c.ls.length))*4+1.8})}
- /* description / flag: rich text (bullets, numbered, bold) */
  const rich=[];for(const b of blocks.filter(x=>x&&x.text)){
   if(typeof pdfRichBlock==='function')rich.push(...pdfRichBlock(C,b.label,b.text,rx,rw,b.col))
   else{font(9.5,'normal');const ls=doc.splitTextToSize(String(b.text),rw);rich.push({h:3+4.5+ls.length*4.3,draw(y){y+=3;font(7,'bold',b.col||GREY);T(b.label.toUpperCase(),rx,y+2.6);font(9.5,'normal');ls.forEach((l,j)=>T(l,rx,y+7.5+j*4.3))}})}}
- const fit=new Map();for(const im of all)fit.set(im,pdfFit(doc,im,lw));const CAP=2.4;
- const CL=new Map();for(const im of all){font(8,'italic');CL.set(im,im.ucap?doc.splitTextToSize(String(im.ucap),lw-1):[])};const capH=im=>{const n=(CL.get(im)||[]).length;return n?n*3.5+1.2:0};
- const leftItems=[];if(noph&&!all.length)leftItems.push({h:PDF_NOPH_H+2,draw(y){doc.setFillColor(244,246,249);doc.setDrawColor(226,232,240);doc.setLineWidth(.3);doc.roundedRect(M,y,lw,PDF_NOPH_H,2,2,'FD');font(9,'normal',[150,158,170]);T('No photo',M+lw/2,y+PDF_NOPH_H/2+1.5,{align:'center'})}});
- for(const im of all){const F=fit.get(im),ch=capH(im);leftItems.push({h:F.h+ch+CAP,draw(y){doc.addImage(im.data,imgFmt(im.data),M+F.dx,y,F.w,F.h,undefined,'FAST');const cl=CL.get(im)||[];if(cl.length){font(8,'italic',[71,85,105]);cl.forEach((l,j)=>T(l,M+F.dx,y+F.h+3.6+j*3.5))}}})}
+ const CAP=2.4;
+ const CL=new Map();for(const im of all){font(8,'italic');CL.set(im,im.ucap?doc.splitTextToSize(String(im.ucap),lw-1):[])}
+ const capH=im=>{const n=(CL.get(im)||[]).length;return n?n*3.5+1.2:0};
  const rightItems=[];for(const r of rows)rightItems.push({h:r.h,draw(y){r.cells.forEach((c,j)=>{const x=rx+j*(pw+6);font(7,'bold',GREY);T(c.l.toUpperCase(),x,y+3.3);font(9,'normal',c.red?[190,18,60]:DARK);T(c.ls,x+labW,y+3.3)});doc.setDrawColor(236,240,244);doc.setLineWidth(.2);doc.line(rx,y+r.h,rx+rw,y+r.h)}});
  for(const p of rich)rightItems.push(p);
- const rightH=rightItems.reduce((a,r)=>a+r.h,0),leftH=leftItems.reduce((a,r)=>a+r.h,0);
- const firstLH=leftItems[0]?leftItems[0].h:0;
- return{h:Math.max(leftH,rightH),topH:Math.min(Math.max(firstLH,Math.min(rightH,60)),firstLH||24||60),
-  async draw(y){const bottom=()=>C.PH()-16;let li=0,ri=0,ly=y,ry=y;
-   while(li<leftItems.length||ri<rightItems.length){let progressed=false;
-    while(li<leftItems.length){const it=leftItems[li];if(ly+it.h>bottom()&&ly>y+0.5)break;if(ly+it.h>bottom()&&ly<=y+0.5){/* oversized: still draw */}it.draw(ly);ly+=it.h;li++;progressed=true}
-    while(ri<rightItems.length){const it=rightItems[ri];if(ry+it.h>bottom()&&ry>y+0.5)break;if(ry+it.h>bottom()&&ry<=y+0.5){/* draw anyway */}it.draw(ry);ry+=it.h;ri++;progressed=true}
-    if(li<leftItems.length||ri<rightItems.length){y=C.newPage();ly=y;ry=y;if(!progressed){/* force one item so we never infinite-loop */if(li<leftItems.length){leftItems[li].draw(ly);ly+=leftItems[li].h;li++}else if(ri<rightItems.length){rightItems[ri].draw(ry);ry+=rightItems[ri].h;ri++}}}}
+ const rightH=rightItems.reduce((a,r)=>a+r.h,0);
+ /* estimate first-page left fill for keep-with-header */
+ const pageH0=()=>C.PH()-16;const firstPack=all.length?pdfPackLeft(doc,all,lw,Math.min(pageH0()-20,Math.max(rightH,60)),CL,CAP):[];
+ const firstLH=firstPack[0]?firstPack[0].h:(noph?PDF_NOPH_H+2:0);
+ const leftHEst=firstPack.reduce((a,x)=>a+x.h,0)||(noph?PDF_NOPH_H+2:0);
+ return{h:Math.max(leftHEst,rightH),topH:Math.min(Math.max(firstLH,Math.min(rightH,60)),firstLH||24||60),
+  async draw(y0){const bottom=()=>C.PH()-16;let pi=0,ri=0,y=y0,nophDrawn=false;
+   const drawPhoto=(im,F,yy)=>{doc.addImage(im.data,imgFmt(im.data),M+F.dx,yy,F.w,F.h,undefined,'FAST');const cl=CL.get(im)||[];if(cl.length){font(8,'italic',[71,85,105]);cl.forEach((l,j)=>T(l,M+F.dx,yy+F.h+3.6+j*3.5))}return F.h+capH(im)+CAP};
+   const drawNoph=yy=>{doc.setFillColor(244,246,249);doc.setDrawColor(226,232,240);doc.setLineWidth(.3);doc.roundedRect(M,yy,lw,PDF_NOPH_H,2,2,'FD');font(9,'normal',[150,158,170]);T('No photo',M+lw/2,yy+PDF_NOPH_H/2+1.5,{align:'center'});return PDF_NOPH_H+2};
+   while(pi<all.length||ri<rightItems.length||(noph&&!nophDrawn&&!all.length)){
+    const avail=bottom()-y;let progressed=false;let ly=y,ry=y;
+    const hasRight=ri<rightItems.length;
+    if(noph&&!all.length&&!nophDrawn){ly+=drawNoph(ly);nophDrawn=true;progressed=true}
+    if(hasRight){
+     /* how much right text fits this page */
+     let rH=0,rN=0;for(let i=ri;i<rightItems.length;i++){const it=rightItems[i];if(rN&&ry-y+rH+it.h>avail&&rH>0)break;if(!rN&&it.h>avail){rN=1;rH=it.h;break}rH+=it.h;rN++;}
+     /* pack photos into the FULL left column height for this page (fill empty space beside tall text) */
+     const pack=pdfPackLeft(doc,all.slice(pi),lw,avail,CL,CAP);
+     for(const t of pack){ly+=drawPhoto(t.im,t.F,ly);pi++;progressed=true}
+     for(let i=0;i<rN;i++){const it=rightItems[ri];it.draw(ry);ry+=it.h;ri++;progressed=true}
+    }else if(pi<all.length){
+     /* Photo-only continuation: full-width 2-column grid (no text on the right) */
+     const colW=(W-gap)/2;let rowY=y,rowH=0,col=0,x0=M;
+     while(pi<all.length){
+      const im=all[pi];font(8,'italic');const caps=im.ucap?doc.splitTextToSize(String(im.ucap),colW-1):[];const ch=caps.length?caps.length*3.5+1.2:0;
+      const F=pdfFit(doc,im,colW,PDF_PH_MAX);const h=F.h+ch+CAP;
+      if(col===0&&rowY+h>bottom()&&rowY>y+0.5)break;
+      if(col===1&&rowY+h>bottom()&&rowH>0){/* wrap to next page rather than overflow */}
+      if(col===0&&rowY+h>bottom()&&rowY<=y+0.5){/* force */}
+      if(col===1&&rowY+Math.max(rowH,h)>bottom()&&rowY>y+0.5)break;
+      const xx=M+col*(colW+gap);doc.addImage(im.data,imgFmt(im.data),xx+F.dx,rowY,F.w,F.h,undefined,'FAST');
+      if(caps.length){font(8,'italic',[71,85,105]);caps.forEach((l,j)=>T(l,xx+F.dx,rowY+F.h+3.6+j*3.5))}
+      rowH=Math.max(rowH,h);pi++;progressed=true;col++;
+      if(col>=2){rowY+=rowH;rowH=0;col=0}
+     }
+     if(col===1){rowY+=rowH}
+     ly=rowY;ry=rowY;
+    }
+    if(pi<all.length||ri<rightItems.length||(noph&&!nophDrawn&&!all.length)){
+     y=C.newPage();ly=y;ry=y;
+     if(!progressed){ /* force one item */
+      if(ri<rightItems.length){rightItems[ri].draw(y);ri++}
+      else if(pi<all.length){const F=pdfFit(doc,all[pi],lw);drawPhoto(all[pi],F,y);pi++}
+      else if(noph&&!nophDrawn){drawNoph(y);nophDrawn=true}
+     }
+    }else return Math.max(ly,ry)+2}
    return Math.max(ly,ry)+2}}}
 /* keep header bar (14 mm) + block together when it fits on a page; otherwise at least header + photo + first details */
 function pdfKeep(L,ensure,avail,bh=9){const hh=bh+5;ensure(hh+(hh+L.h<=avail?L.h:L.topH))}
@@ -42250,24 +42298,53 @@ Object.assign(ACT,{'repair-open':el=>repairOpen(el.dataset.id)});
 const notesClean=a=>(Array.isArray(a)?a:[]).map(s=>({title:String(s&&s.title||'').trim(),body:String(s&&s.body||'').replace(/\r/g,'').trim()})).filter(s=>s.title||s.body);
 const notesOwn=a=>!!a&&Array.isArray(a.rptNotes);
 function notesFor(p,a){return notesClean(a&&notesOwn(a)?a.rptNotes:p&&p.rptNotes)}
-function notesRuns(t){const out=[];String(t).split(/(\*\*[^*]+\*\*)/).forEach(x=>{if(!x)return;const b=/^\*\*[^*]+\*\*$/.test(x);out.push({t:b?x.slice(2,-2):x,b})});return out}
-function notesBlocks(body){const blocks=[];for(const para of String(body||'').split(/\n\s*\n/)){const lines=para.split('\n').map(l=>l.trimEnd()).filter(l=>l.trim());if(!lines.length)continue;let cur=null;
-  for(const l of lines){const m=l.match(/^\s*[-*•]\s+(.*)$/);const n=l.match(/^\s*(\d+)[.)]\s+(.*)$/);
-   if(m){if(!cur||cur.t!=='ul'){cur={t:'ul',items:[]};blocks.push(cur)}cur.items.push(notesRuns(m[1]))}
-   else if(n){if(!cur||cur.t!=='ol'){cur={t:'ol',items:[],n:+n[1]};blocks.push(cur)}cur.items.push(notesRuns(n[2]))}
-   else if(cur&&cur.t==='p'){cur.runs.push({t:' '},...notesRuns(l.trim()))}else{cur={t:'p',runs:notesRuns(l.trim())};blocks.push(cur)}}}
- return blocks}
-const notesRunsHTML=r=>r.map(x=>x.b?`<b>${esc(x.t)}</b>`:esc(x.t)).join('');
+function notesRuns(t){const out=[];String(t).split(/(\*\*[^*]+\*\*)/).forEach(x=>{if(!x)return;const b=/^\*\*[^*]+\*\*$/.test(x);out.push({t:b?x.slice(2,-2):x,b:!!b,u:false})});return out}
+/* Observation(s) / Recommendation(s) labels → bold + underline; list "Title: detail" → bold title. */
+const NOTES_HEAD=/^(Observations?|Recommendations?)(\b|[\s–—:\-])/i;
+function notesIsHeadLine(s){const t=String(s||'').trim();if(!NOTES_HEAD.test(t))return false;return t.length<=120||/^(Observations?|Recommendations?)\s*[–—:\-]/i.test(t)}
+function notesEnhanceRuns(runs,asList){const flat=(runs||[]).map(r=>r.t).join('');
+ if(notesIsHeadLine(flat))return[{t:flat,b:true,u:true}];
+ if(asList){const m=flat.match(/^([^\n]{3,90}?)(\s*:\s+|\s+[–—]\s+)([\s\S]+)$/);
+  if(m&&!/^\d{1,2}:\d{2}/.test(flat)){ /* not a time */ const title=m[1],sep=m[2],rest=m[3];
+   if(!/^[\d.\s]+$/.test(title))return[{t:title,b:true,u:false},{t:sep,b:false,u:false},...notesRuns(rest)]}}
+ return(runs||[]).map(r=>({t:r.t,b:!!r.b,u:!!r.u}))}
+function notesBlocks(body){
+const blocks=[];
+for(const para of String(body||'').split(/\n\s*\n/)){
+  const lines=para.split('\n').map(l=>l.trimEnd()).filter(l=>l.trim());
+  if(!lines.length)continue;
+  let cur=null;
+  for(const l of lines){
+    const m=l.match(/^\s*[-*•]\s+(.*)$/);
+    const n=l.match(/^\s*(\d+)[.)]\s+(.*)$/);
+    if(m){
+      if(!cur||cur.t!=='ul'){cur={t:'ul',items:[]};blocks.push(cur)}
+      cur.items.push(notesEnhanceRuns(notesRuns(m[1]),true));
+    }else if(n){
+      if(!cur||cur.t!=='ol'){cur={t:'ol',items:[],n:+n[1]};blocks.push(cur)}
+      cur.items.push(notesEnhanceRuns(notesRuns(n[2]),true));
+    }else{
+      const runs=notesEnhanceRuns(notesRuns(l.trim()),false);
+      if(runs.some(r=>r.u)){cur={t:'p',runs};blocks.push(cur)}
+      else if(cur&&cur.t==='p'&&!cur.runs.some(r=>r.u)){cur.runs.push({t:' ',b:false,u:false},...runs)}
+      else{cur={t:'p',runs};blocks.push(cur)}
+    }
+  }
+}
+return blocks}
+
+const notesRunsHTML=r=>(r||[]).map(x=>{const t=esc(x.t);return x.b&&x.u?`<b><u>${t}</u></b>`:x.b?`<b>${t}</b>`:x.u?`<u>${t}</u>`:t}).join('');
 function notesHTML(secs){return secs.map(s=>`<section class="rn-sec">${s.title?`<h3>${esc(s.title)}</h3>`:''}${notesBlocks(s.body).map(b=>b.t==='ul'?`<ul>${b.items.map(r=>`<li>${notesRunsHTML(r)}</li>`).join('')}</ul>`:b.t==='ol'?`<ol start="${b.n||1}">${b.items.map(r=>`<li>${notesRunsHTML(r)}</li>`).join('')}</ol>`:`<p>${notesRunsHTML(b.runs)}</p>`).join('')}</section>`).join('')}
 /* PDF: C = {doc,font,ensure(h),Y(),setY(v),M,PW(),acc,DARK} – flows over pages, never crops */
 function pdfNotes(C,secs){const{doc,font,M}=C;const W=()=>C.PW()-2*M,size=10,lh=4.9;
- const words=runs=>{const w=[];let sp=true;for(const r of runs)for(const part of String(r.t).split(/(\s+)/)){if(!part)continue;if(/^\s+$/.test(part)){sp=true;continue}if(!sp&&w.length){const L=w[w.length-1];L.parts=L.parts||[{t:L.t,b:L.b}];L.parts.push({t:part,b:!!r.b});L.t+=part}else w.push({t:part,b:!!r.b});sp=false}return w};
+ const words=runs=>{const w=[];let sp=true;for(const r of runs)for(const part of String(r.t).split(/(\s+)/)){if(!part)continue;if(/^\s+$/.test(part)){sp=true;continue}if(!sp&&w.length){const L=w[w.length-1];L.parts=L.parts||[{t:L.t,b:L.b,u:!!L.u}];L.parts.push({t:part,b:!!r.b,u:!!r.u});L.t+=part;L.u=L.u||!!r.u}else w.push({t:part,b:!!r.b,u:!!r.u});sp=false}return w};
  const lineSet=(runs,x0,maxW)=>{const ws=words(runs),lines=[];let cur=[],wd=0;const tw=(t,b)=>{doc.setFont('helvetica',b?'bold':'normal');doc.setFontSize(size);return doc.getTextWidth(t)};const sp=tw(' ',false);
   for(const w of ws){if(w.parts){const l=w.parts.reduce((a,x)=>a+tw(x.t,x.b),0);const add=(cur.length?sp:0)+l;if(cur.length&&wd+add>maxW){lines.push(cur);cur=[];wd=0}wd+=(cur.length?sp:0)+l;cur.push(w);continue}let t=w.t,l=tw(t,w.b);
-   while(l>maxW&&t.length>1){let k=t.length;while(k>1&&tw(t.slice(0,k),w.b)>maxW-(cur.length?wd+sp:0))k--;if(cur.length&&k<=1){lines.push(cur);cur=[];wd=0;continue}lines.push([...cur,{t:t.slice(0,k),b:w.b}]);cur=[];wd=0;t=t.slice(k);l=tw(t,w.b)}
-   const add=(cur.length?sp:0)+l;if(cur.length&&wd+add>maxW){lines.push(cur);cur=[];wd=0}wd+=(cur.length?sp:0)+l;cur.push({t,b:w.b})}
+   while(l>maxW&&t.length>1){let k=t.length;while(k>1&&tw(t.slice(0,k),w.b)>maxW-(cur.length?wd+sp:0))k--;if(cur.length&&k<=1){lines.push(cur);cur=[];wd=0;continue}lines.push([...cur,{t:t.slice(0,k),b:w.b,u:!!w.u}]);cur=[];wd=0;t=t.slice(k);l=tw(t,w.b)}
+   const add=(cur.length?sp:0)+l;if(cur.length&&wd+add>maxW){lines.push(cur);cur=[];wd=0}wd+=(cur.length?sp:0)+l;cur.push({t,b:w.b,u:!!w.u})}
   if(cur.length)lines.push(cur);return lines};
- const draw=(line,x)=>{let xx=x;for(const[k,w]of line.entries()){font(size,w.b?'bold':'normal',C.DARK);if(k){doc.setFont('helvetica','normal');xx+=doc.getTextWidth(' ')}for(const x of(w.parts||[w])){font(size,x.b?'bold':'normal',C.DARK);doc.text(x.t,xx,C.Y());xx+=doc.getTextWidth(x.t)}}};
+ const uline=(str,x,y,bold)=>{font(size,bold?'bold':'normal',C.DARK);doc.text(str,x,y);const w=doc.getTextWidth(str);doc.setDrawColor(...C.DARK);doc.setLineWidth(0.3);doc.line(x,y+0.7,x+w,y+0.7)};
+ const draw=(line,x)=>{let xx=x;for(const[k,w]of line.entries()){if(k){doc.setFont('helvetica','normal');xx+=doc.getTextWidth(' ')}for(const part of(w.parts||[w])){font(size,part.b?'bold':'normal',C.DARK);if(part.u||w.u)uline(part.t,xx,C.Y(),part.b);else doc.text(part.t,xx,C.Y());xx+=doc.getTextWidth(part.t)}}};
  for(const s of secs){if(s.title){C.ensure(9+lh*2);font(12,'bold',C.acc);const tl=doc.splitTextToSize(s.title,W());for(const l of tl){C.ensure(6);doc.text(l,M,C.Y()+4);C.setY(C.Y()+6)}C.setY(C.Y()+1.5)}
   for(const b of notesBlocks(s.body)){const items=b.t==='ul'||b.t==='ol'?b.items:[b.runs];let num=b.n||1;
    for(const r of items){const pad=b.t==='ul'||b.t==='ol'?5:0;const x=M+pad;const lines=lineSet(r,x,W()-pad);
@@ -42341,7 +42418,7 @@ function pdfRichBlock(C,label,body,x,rw,col){const{doc,font,T}=C,GREY=[110,120,1
  out.push({h:3,draw(){}});
  if(label)out.push({h:4.5,draw(y){font(7,'bold',col||GREY);T(String(label).toUpperCase(),x,y+2.6)}});
  const tw=(t,bold)=>{doc.setFont('helvetica',bold?'bold':'normal');doc.setFontSize(size);return doc.getTextWidth(t)};
- const lineSet=(runs,maxW)=>{const words=[];for(const r of runs){const parts=String(r.t).split(/(\s+)/);for(const p of parts){if(!p)continue;if(/^\s+$/.test(p)){words.push({sp:1});continue}words.push({t:p,b:!!r.b})}}
+ const lineSet=(runs,maxW)=>{const words=[];for(const r of runs){const parts=String(r.t).split(/(\s+)/);for(const p of parts){if(!p)continue;if(/^\s+$/.test(p)){words.push({sp:1});continue}words.push({t:p,b:!!r.b,u:!!r.u})}}
   const lines=[];let cur=[],wd=0;const sp=tw(' ',false);
   for(const w of words){if(w.sp){if(cur.length){cur.push(w);wd+=sp}continue}
    const wdw=tw(w.t,w.b);if(cur.length&&wd+sp+wdw>maxW){lines.push(cur);cur=[];wd=0}
@@ -42351,14 +42428,14 @@ function pdfRichBlock(C,label,body,x,rw,col){const{doc,font,T}=C,GREY=[110,120,1
   for(const r of items){const pad=b.t==='ul'||b.t==='ol'?6:0;const lines=lineSet(r,rw-pad-1);const mark=b.t==='ul'?'•':b.t==='ol'?((n++)+'.'):'';
    const h=Math.max(1,lines.length)*lh+(b.t==='ul'||b.t==='ol'?0.8:2);
    out.push({h,draw(y0){let y=y0;lines.forEach((ln,k)=>{if(k===0&&mark){font(size,'bold',col||C.acc||GREY);T(mark,x+0.4,y+3)}
-    let xx=x+pad;for(const w of ln){if(w.sp){xx+=tw(' ',false);continue}font(size,w.b?'bold':'normal',DARK);T(w.t,xx,y+3);xx+=tw(w.t,w.b)}y+=lh})}})}}
+    let xx=x+pad;for(const w of ln){if(w.sp){xx+=tw(' ',false);continue}font(size,w.b?'bold':'normal',DARK);T(w.t,xx,y+3);if(w.u){const ww=tw(w.t,w.b);doc.setDrawColor(...DARK);doc.setLineWidth(.3);doc.line(xx,y+3.7,xx+ww,y+3.7)}xx+=tw(w.t,w.b)}y+=lh})}})}}
  return out}
 /* ---- Word (.docx) export – mirrors PDF: cover, summary tables, notes, issues (left photos / right text) ---- */
 function docxReady(){return !!(window.docx&&docx.Document&&docx.Packer)}
 function docxImg(data,wPx,hPx,maxW){if(!data||!/^data:image\//.test(data))return null;try{const b64=data.split(',')[1];if(!b64)return null;const bin=atob(b64);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
  const max=maxW||280;let w=wPx||max,h=hPx||Math.round(max*.75);if(w>max){h=Math.round(h*max/w);w=max}if(h>360){w=Math.round(w*360/h);h=360}
  return new docx.ImageRun({type:/png/i.test(data)?'png':'jpg',data:u,transformation:{width:w,height:h},altText:{title:'Photo',description:'Issue photo',name:'photo'}})}catch(e){return null}}
-function docxRuns(runs){return(runs||[]).map(r=>new docx.TextRun({text:r.t,bold:!!r.b,size:20,font:'Calibri'}))}
+function docxRuns(runs){return(runs||[]).map(r=>new docx.TextRun({text:r.t,bold:!!r.b,underline:r.u?{}:undefined,size:20,font:'Calibri'}))}
 function docxBodyParas(body){const out=[];for(const b of notesBlocks(body)){
   if(b.t==='ul')b.items.forEach(r=>out.push(new docx.Paragraph({bullet:{level:0},children:docxRuns(r),spacing:{after:80}})));
   else if(b.t==='ol')b.items.forEach((r,i)=>out.push(new docx.Paragraph({numbering:{reference:'notes-num',level:0},children:docxRuns(r),spacing:{after:80}})));
