@@ -40139,9 +40139,6 @@ async function generatePDF(d,o,opt={}){await coFresh();const{jsPDF}=window.jspdf
  if(a)rows.push(['Inspection',a.title],['Inspection date',fmtDate(a.date)],['Inspector',a.inspector],['Weather',a.weather],['Attendees',a.attendees]);else rows.push(['Inspections included',d.audits.slice().sort((x,y)=>auditSeq(x.id)-auditSeq(y.id)).map(x=>`${x.title} (${fmtDate(x.date)}${x.inspector?', '+x.inspector:''})`).join('\n')]);
  rows.push(['Prepared by',[company,...co.lines].filter(Boolean).join('\n')]);
  for(const[k,v]of rows.filter(r=>r[1])){font(9.5,'normal');const ls=doc.splitTextToSize(String(v),PW-2*M-46).slice(0,6);const h=Math.max(6.4,ls.length*4.3+2.4);ensure(h);font(8,'bold',GREY);T(k.toUpperCase(),M,y);font(9.5,'normal');T(ls,M+46,y);doc.setDrawColor(230,234,240);doc.setLineWidth(.2);doc.line(M,y+h-4,PW-M,y+h-4);y+=h}
- y+=3;ensure(16);
- const op=all.filter(i=>i.status!=='Closed');font(9,'normal',GREY);T(`Open issues by importance:  Critical ${op.filter(i=>i.priority==='Critical').length}  ·  High ${op.filter(i=>i.priority==='High').length}  ·  Medium ${op.filter(i=>i.priority==='Medium').length}  ·  Low ${op.filter(i=>i.priority==='Low').length}${all.length?`   |   ${Math.round(cnt('Closed')/all.length*100)}% complete`:''}`,M,y);y+=5;T(`Open issues by priority:  ${PHASES.map(p=>`Phase ${p} ${op.filter(i=>i.phase===p).length}`).join('  ·  ')}  ·  Not set ${op.filter(i=>!i.phase).length}`,M,y);y+=6;
- const trc=tradeCounts(all);if(trc.length){font(9,'normal',GREY);for(const l of doc.splitTextToSize('Issues by trade:  '+trc.map(([t,n])=>`${t} ${n}`).join('  ·  '),PW-2*M)){T(l,M,y);y+=4.6}y+=1.4}
  if(!o.closed&&cnt('Closed'))
   {font(8,'italic',GREY);T(`Closed issues (${cnt('Closed')}) are excluded from this report's issue list.`,M,y);y+=6}
  const notes=[a?a.notes:'',p.notes].filter(Boolean).join('\n\n');if(notes){y+=3;font(8.5,'bold',GREY);T('NOTES',M,y);y+=5;font(9.5,'normal');for(const l of doc.splitTextToSize(notes,PW-2*M)){ensure(5);T(l,M,y);y+=4.4}}
@@ -40192,12 +40189,12 @@ async function generatePDF(d,o,opt={}){await coFresh();const{jsPDF}=window.jspdf
  /* sign-off */
  const sg=d.audits.filter(x=>x.signature);if(sg.length){ensure(20);y+=4;heading('Sign-off');for(const x of sg){ensure(40);font(9,'bold');T(`${x.inspector||'Inspector'}`,M,y);font(8.5,'normal',GREY);T(`${x.title} · ${fmtDate(x.date)}`,M,y+4.5);const s=await imgSize(x.signature);const[w,h]=fit(s.w,s.h,70,24);doc.addImage(x.signature,'PNG',M,y+7,w,h);doc.setDrawColor(150,160,170);doc.line(M,y+32,M+80,y+32);y+=40}}
  /* page header + footer: inspecting company logo / name / address */
- await pdfChrome(doc,co,{M,left:(o.title||p.name)+(p.reference?' · Ref '+p.reference:''),font,T});const n=doc.getNumberOfPages();
+ await pdfChrome(doc,co,{M,left:o.title||p.name,font,T});const n=doc.getNumberOfPages();
  const fname=`${safeName(o.title||p.name)}_${today()}.pdf`;window.__lastPdf={name:fname,pages:n};if(!opt.noDownload)doc.save(fname);return doc}
 
 async function printView(d,o){const done=busy('Preparing print view…');try{await coFresh();const acc=o.color,lt=`rgb(${mix(hex2rgb(acc),.88).join(',')})`,p=d.project,a=d.audit,per=+o.perRow||3,all=d.allItems,co=coInfo(coOf(p)),logo=co.logo,clogo=p.logo&&p.logo!==co.logo?p.logo:'';
  const kv=[['Project',p.name],['Reference',p.reference],['Client',p.client],['Site address',p.address],['Project date',fmtDate(p.date)],...(a?[['Inspection',a.title],['Inspection date',fmtDate(a.date)],['Inspector',a.inspector],['Weather',a.weather],['Attendees',a.attendees]]:[['Inspections',d.audits.map(x=>`${x.title} (${fmtDate(x.date)})`).join(', ')]]),['Prepared by',[co.name,...co.lines].filter(Boolean).join('\n')],['Report date',fmtDT(Date.now())]].filter(r=>r[1]);
- const cnt=s=>all.filter(i=>i.status===s).length;let h=`<!doctype html><html><head><meta charset="utf-8"><title>${esc(o.title)}</title><style>.rn-page h3{margin:14px 0 6px;font-size:15px}.rn-page p{margin:0 0 8px;line-height:1.5}.rn-page ul,.rn-page ol{margin:0 0 10px 18px;padding:0}.rn-page li{margin:2px 0}
+ let h=`<!doctype html><html><head><meta charset="utf-8"><title>${esc(o.title)}</title><style>.rn-page h3{margin:14px 0 6px;font-size:15px}.rn-page p{margin:0 0 8px;line-height:1.5}.rn-page ul,.rn-page ol{margin:0 0 10px 18px;padding:0}.rn-page li{margin:2px 0}
 @page{size:A4 portrait;margin:13mm}*{box-sizing:border-box}body{font:10.5pt/1.4 Helvetica,Arial,sans-serif;color:#1e2430;margin:0;padding:16px;-webkit-print-color-adjust:exact;print-color-adjust:exact}.runhead{display:flex;align-items:center;gap:10px;margin:14px 0 4px;padding:0 0 6px;border-bottom:1px solid #e2e8f0;font-size:8.5pt;color:#475569}.runhead img{height:26px;max-width:110px;object-fit:contain}.runhead span{margin-left:auto;color:#8a94a6}@media print{body{padding:0}}
 .cover{background:${acc};color:#fff;padding:26px;border-radius:6px;display:flex;justify-content:space-between;gap:20px}.cover h1{margin:6px 0;font-size:24pt}.cover .lg{background:#fff;border-radius:6px;padding:8px;align-self:flex-start}.cover .lg img{max-width:150px;max-height:84px;display:block}.cover .lgs{display:flex;flex-direction:column;gap:8px;align-self:flex-start}.cover .co{margin-top:14px;font-weight:bold}.cofoot{margin-top:28px;border-top:1px solid #dde3ea;padding-top:8px;font-size:8pt;color:#778;text-align:center}
 h2{color:${acc};border-bottom:2px solid ${acc};padding-bottom:4px;margin:24px 0 12px;font-size:15pt}dl{display:grid;grid-template-columns:150px 1fr;gap:5px 12px;margin:18px 0}dt{color:#667;font-weight:bold;font-size:8.5pt;text-transform:uppercase}dd{margin:0;white-space:pre-wrap}
@@ -40208,8 +40205,8 @@ table{width:100%;border-collapse:collapse;font-size:9pt}th{background:${acc};col
 .noph{height:34mm;border:1px solid #e2e8f0;background:#f4f6f9;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#969eaa;font-size:9pt}.ib .main figure{margin:0 0 8px;break-inside:avoid;page-break-inside:avoid}.ib .main img{width:auto;max-width:100%;height:auto;max-height:110mm;display:block;margin:0 auto}.ib .main figcaption.ucap{font-style:italic;font-weight:normal;margin-top:3px;color:#475569;text-align:center}.kv{display:grid;grid-template-columns:28mm 1fr;gap:3px 8px;font-size:9.5pt}.nophoto .kv{grid-template-columns:28mm 1fr 28mm 1fr}.kv small,small.bl{color:#778;font-size:7.5pt;font-weight:bold;text-transform:uppercase;padding-top:2px}small.bl{display:block;margin-top:10px}.kv .over{color:#be123c;font-weight:bold}figcaption{font-size:8pt;color:#667}.desc p{margin:0 0 6px}.desc ul,.desc ol{margin:0 0 8px 18px;padding:0}.desc li{margin:2px 0}.desc b{font-weight:700}.desc u{text-decoration:underline}
 ${RC_CSS}:root{--acc:${acc}}
 .chip{color:#fff;border-radius:4px;padding:1px 7px;font-size:8.5pt;margin-left:4px;white-space:nowrap}.pb{break-before:page;page-break-before:always}.dw img{max-width:100%;max-height:235mm;display:block;margin:auto;border:1px solid #ccd}.desc{white-space:normal}.sec td{background:${lt}!important;font-weight:bold;color:${acc}}
-</style></head><body><div class="cover"><div><div style="font-weight:bold;letter-spacing:.06em">${esc((o.subtitle||'').toUpperCase())}</div><h1>${esc(o.title)}</h1><div>${esc([p.client,p.address].filter(Boolean).join(' · '))}</div>${co.name?`<div class="co">Inspecting company: ${esc(co.name)}</div>`:''}</div>${logo||clogo?`<div class="lgs">${logo?`<div class="lg"><img src="${logo}" alt="${esc(co.name)}"></div>`:''}${clogo?`<div class="lg"><img src="${clogo}" alt=""></div>`:''}</div>`:''}</div>${logo||co.name?`<div class="runhead">${logo?`<img src="${logo}" alt="">`:''}<b>${esc(co.name||'')}</b><span>${esc(o.title||p.name)}</span></div>`:''}
-<dl>${kv.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl><div class="stats"><div><b>${all.length}</b>Total</div><div><b style="color:#dc2626">${cnt('Open')}</b>Open</div><div><b style="color:#d97706">${cnt('In Progress')}</b>In progress</div><div><b style="color:#16a34a">${cnt('Closed')}</b>Closed</div><div><b style="color:#9f1239">${all.filter(isOver).length}</b>Overdue</div></div>${tradeCounts(all).length?`<p style="font-size:9pt;color:#556"><b>Issues by trade:</b> ${tradeCounts(all).map(([t,n])=>esc(t)+' '+n).join(' · ')}</p>`:''}${[a?a.notes:'',p.notes].filter(Boolean).map(n=>`<p class="desc">${esc(n)}</p>`).join('')}`;
+</style></head><body><div class="cover"><div><div style="font-weight:bold;letter-spacing:.06em">${esc((o.subtitle||'').toUpperCase())}</div><h1>${esc(o.title)}</h1><div>${esc([p.client,p.address].filter(Boolean).join(' · '))}</div>${co.name?`<div class="co">Inspecting company: ${esc(co.name)}</div>`:''}</div>${logo||clogo?`<div class="lgs">${logo?`<div class="lg"><img src="${logo}" alt="${esc(co.name)}"></div>`:''}${clogo?`<div class="lg"><img src="${clogo}" alt=""></div>`:''}</div>`:''}</div>${logo||(o.title||p.name)?`<div class="runhead">${logo?`<img src="${logo}" alt="">`:''}<span>${esc(o.title||p.name)}</span></div>`:''}
+<dl>${kv.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${[a?a.notes:'',p.notes].filter(Boolean).map(n=>`<p class="desc">${esc(n)}</p>`).join('')}`;
  if(o.charts!==false&&all.length)h+=`<h2 class="pb">Executive summary</h2>${svgExecSummary(all,{acc,progress:rcSpansDays(all,d.audits)})}`;
  const items=d.items;if(o.summary&&items.length)h+=`<h2 class="pb">Summary of issues</h2><table><tr><th>#</th><th>Issue</th><th>Location</th><th>Trade</th><th>Importance</th><th>Priority</th><th>Status</th><th>Assignee</th><th>Due</th></tr>${items.map(i=>`<tr><td><b>${a?issueNo(i):issueRef(i)}</b></td><td>${esc(i.title)}</td><td>${esc(i.location)}</td><td>${esc(i.category)}${i.defectType?`<br><small>${esc(i.defectType)}</small>`:''}</td><td style="color:${PRIO_COLOR[i.priority]};font-weight:bold">${i.priority}</td><td>${phaseLabel(i.phase)||'–'}</td><td style="color:${STATUS_COLOR[i.status]};font-weight:bold">${i.status}</td><td>${esc(i.assignee)}</td><td ${isOver(i)?'style="color:#be123c;font-weight:bold"':''}>${fmtDate(i.dueDate)}</td></tr>`).join('')}</table>`;
  {const ns=o.notes===false?[]:notesFor(p,a);if(ns.length)h+=`<h2 class="pb">Notes</h2><div class="rn-page">${notesHTML(ns)}</div>`}
@@ -41483,7 +41480,7 @@ async function conPDF(d,o,opt={}){await coFresh();const{jsPDF}=window.jspdf;cons
      doc.setFillColor(...light);doc.rect(M,y,PW-2*M,bh,'F');font(11,'bold',acc);T(nt,M+3,y+6.1);font(10.5,'bold');tls.forEach((l,j)=>T(l,M+3+nw,y+6.1+j*PDF_HL));chip(it.status,PW-M-2-sw,y+6,STATUS_COLOR[it.status]);chip(it.priority,PW-M-4-sw-pw,y+6,PRIO_COLOR[it.priority]);if(phl)chip(phl,PW-M-4-sw-pw-fw,y+6,PHASE_COLOR);y+=bh+4;
      y=await L.draw(y);drewIssue=true;
      y+=1;doc.setDrawColor(226,232,240);doc.setLineWidth(.3);doc.line(M,y,PW-M,y);y+=6}}}}
- await pdfChrome(doc,co,{M,left:(o.title||p.name)+(p.code?' · '+p.code:''),font,T});const n=doc.getNumberOfPages();
+ await pdfChrome(doc,co,{M,left:o.title||p.name,font,T});const n=doc.getNumberOfPages();
  const fname=`${safeName(d.fileName)}.pdf`;window.__lastPdf={name:fname,pages:n,consolidated:true};if(!opt.noDownload)doc.save(fname);return doc}
 Object.assign(ACT,{'con-report':el=>conDialog(el.dataset.id)});
 
@@ -41618,7 +41615,7 @@ async function pdfCoverLogos(doc,co,p,PW,M){const L=co.logo,C=p.logo&&p.logo!==L
  if(L){doc.roundedRect(PW-M-44,12,44,30,2,2,'F');await pdfLogo(doc,L,PW-M-41,14,38,26,'co-logo')}
  if(C){const y0=L?46:12,h0=L?22:30;doc.roundedRect(PW-M-44,y0,44,h0,2,2,'F');await pdfLogo(doc,C,PW-M-41,y0+2,38,h0-4,'client-logo')}return 52}
 async function pdfChrome(doc,co,{M,left,font,T}){const n=doc.getNumberOfPages(),line=coLine(co);for(let i=1;i<=n;i++){doc.setPage(i);const w=doc.internal.pageSize.getWidth(),h=doc.internal.pageSize.getHeight();
-  if(i>1){let x=M;if(co.logo){try{x+=await pdfLogo(doc,co.logo,M,4.2,24,7.5,'co-logo',true)+2.5}catch(e){}}font(8,'bold',[71,85,105]);if(co.name)T(co.name,x,9.6);font(7.5,'normal',[130,140,155]);T(doc.splitTextToSize(left,w/2-M)[0],w-M,9.6,{align:'right'});doc.setDrawColor(226,232,240);doc.setLineWidth(.3);doc.line(M,12.6,w-M,12.6);
+  if(i>1){if(co.logo){try{await pdfLogo(doc,co.logo,M,4.2,24,7.5,'co-logo',true)}catch(e){}}font(7.5,'normal',[130,140,155]);T(doc.splitTextToSize(left,w/2-M)[0],w-M,9.6,{align:'right'});doc.setDrawColor(226,232,240);doc.setLineWidth(.3);doc.line(M,12.6,w-M,12.6);
    doc.line(M,h-12.5,w-M,h-12.5)}
   font(7.5,'normal',[130,140,155]);T(doc.splitTextToSize(left,w/2-M-10)[0],M,h-8);const mid=[co.name,co.footer].filter(Boolean).join(' · ');if(mid)T(doc.splitTextToSize(mid,w/3)[0],w/2,h-8,{align:'center'});T(`Page ${i} of ${n}`,w-M,h-8,{align:'right'});
   if(line){font(6.5,'normal',[150,158,170]);T(doc.splitTextToSize(line,w-2*M)[0],w/2,h-4,{align:'center'})}}}
@@ -41911,15 +41908,15 @@ const RC_CSS='.charts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin
 function rcSpansDays(items,audits){const s=new Set((audits||[]).map(a=>a.date).filter(Boolean));for(const i of items){if(i.createdAt)s.add(rcDay(i.createdAt));const c=rcClosedAt(i);if(c)s.add(rcDay(c))}return s.size>1}
 /* key numbers for the cover */
 function rcKeyNums(all){const c=s=>all.filter(i=>i.status===s).length,T=all.length;return[['Total',T,'#1e2430'],['Open',c('Open'),'#dc2626'],['In progress',c('In Progress'),'#d97706'],['Closed',c('Closed'),'#16a34a'],['Complete',rcPct(c('Closed'),T)+'%',null],['Overdue',all.filter(isOver).length,'#9f1239']]}
-/* Cover page (both PDF reports): large company logo, accent title block, key-numbers strip. Returns y below the strip. */
+/* Cover page (both PDF reports): large company logo, accent title block. Returns y below the band (no status-count strip). */
 async function pdfCover(doc,{co,p,acc,M,font,T,kicker,title,lines,when,all}){const PW=doc.internal.pageSize.getWidth();const W=[255,255,255];
  let lw=0;if(co.logo){try{lw=await pdfLogo(doc,co.logo,M,10,78,30,'co-logo',true)}catch(e){lw=0}}if(!lw&&co.name){font(18,'bold',acc);T(rcFit(co.name,PW-2*M-50,18,true),M,28)}
  const cl=p.logo&&p.logo!==co.logo?p.logo:'';if(cl){try{await pdfLogo(doc,cl,PW-M-46,12,46,24,'client-logo')}catch(e){}}
  const tl=doc.splitTextToSize(title,PW-2*M-12).slice(0,6);font(24,'bold');const bandH=24+tl.length*9.6+lines.length*5.6+16;const y0=48;doc.setFillColor(...acc);doc.rect(0,y0,PW,bandH,'F');doc.setFillColor(...mix(acc,.25));doc.rect(0,y0+bandH-1.6,PW,1.6,'F');
  let y=y0+12;font(9.5,'bold',W);doc.setCharSpace(.6);T(String(kicker).toUpperCase(),M,y);doc.setCharSpace(0);y+=11;font(24,'bold',W);T(tl,M,y);y+=tl.length*9.6;
  for(const[l,b]of lines){font(b?10:11,b?'bold':'normal',W);T(rcFit(l,PW-2*M,b?10:11,!!b),M,y);y+=5.6}font(8.5,'normal',mix(acc,.6));T(rcFit(when,PW-2*M,8.5),M,y0+bandH-5);
- y=y0+bandH+7;const K=rcKeyNums(all),gap=3,bw=(PW-2*M-gap*5)/6;K.forEach(([l,n,c],k)=>{const x=M+k*(bw+gap);doc.setFillColor(...(c?[246,248,251]:acc));doc.setDrawColor(...(c?[222,228,234]:acc));doc.setLineWidth(.3);doc.roundedRect(x,y,bw,21,2,2,'FD');
-  font(17,'bold',c?hex2rgb(c):W);T(String(n),x+bw/2,y+11,{align:'center'});font(6.8,'bold',c?[110,120,135]:mix(acc,.75));T(l.toUpperCase(),x+bw/2,y+17,{align:'center'})});return y+28}
+ /* key-numbers strip removed – status counts live in the report body (charts / summaries) */
+ return y0+bandH+10}
 
 /* ===== About & diagnostics (Settings) + update check =====
  Visible to every user. Shows what the support person needs when a device does not see shared projects: app version (running / on the
@@ -42474,7 +42471,6 @@ async function generateDocx(d,o,opt={}){if(!docxReady())throw new Error('Word ex
  const coverKV=[['Project',p.name],['Reference',p.reference],['Client',p.client],['Site address',p.address],...(a?[['Inspection',a.title],['Date',fmtDate(a.date)],['Inspector',a.inspector]]:[['Inspections',d.audits.map(x=>x.title+' ('+fmtDate(x.date)+')').join(', ')]]),['Report date',fmtDT(Date.now())]];
  children.push(docxKV(coverKV));
  const cnt=s=>all.filter(i=>i.status===s).length;
- children.push(new Paragraph({spacing:{before:240,after:120},children:[new TextRun({text:`${all.length} issues · ${cnt('Open')} open · ${cnt('In Progress')} in progress · ${cnt('Closed')} closed · ${all.filter(isOver).length} overdue`,size:20,font:'Calibri'})]}));
  /* charts → summary tables (images optional; tables always present) */
  if(o.charts!==false&&all.length){children.push(new Paragraph({heading:HeadingLevel.HEADING_1,children:[new TextRun({text:'Executive summary',color:acc})]}));
   children.push(new Paragraph({spacing:{after:80},children:[new TextRun({text:'Charts from the PDF are summarised as tables in Word.',italics:true,size:18,color:'667788',font:'Calibri'})]}));
@@ -42516,7 +42512,7 @@ async function generateDocx(d,o,opt={}){if(!docxReady())throw new Error('Word ex
  const doc=new Document({styles:{default:{document:{styles:[{id:'Normal',run:{font:'Calibri',size:20}}]}}},
   numbering:{config:[{reference:'notes-num',levels:[{level:0,format:'decimal',text:'%1.',alignment:AlignmentType.LEFT,style:{paragraph:{indent:{left:720,hanging:360}}}}]}]},
   sections:[{properties:{page:{margin:{top:720,right:720,bottom:720,left:720}}},
-   headers:[new Header({children:[new Paragraph({children:[new TextRun({text:co.name||'Site Inspection',size:16,color:'475569',font:'Calibri'}),new TextRun({text:'  ·  '+(o.title||p.name),size:16,color:'8A94A6',font:'Calibri'})]})]})],
+   headers:[new Header({children:[new Paragraph({alignment:AlignmentType.RIGHT,children:[new TextRun({text:o.title||p.name||'',size:16,color:'8A94A6',font:'Calibri'})]})]})],
    footers:[new Footer({children:[new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:'Page ',size:16,font:'Calibri'}),new TextRun({children:[PageNumber.CURRENT],size:16,font:'Calibri'}),new TextRun({text:' of ',size:16,font:'Calibri'}),new TextRun({children:[PageNumber.TOTAL_PAGES],size:16,font:'Calibri'})]})]})],
    children}]});
  const blob=await Packer.toBlob(doc);const fname=`${safeName(o.title||p.name)}_${today()}.docx`;
