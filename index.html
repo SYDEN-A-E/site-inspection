@@ -39590,7 +39590,7 @@ function bundleOf(store,r){if(store==='settings')return'settings';if(store==='te
 async function addTomb(key,bundle,ts=Date.now()){const t={id:key,bundle,deletedAt:ts};await DB.put('tombstones',t);TOMBS.set(key,t);Sync.markDirty(bundle)}
 const BY_STORES=['projects','audits','items','checklists','drawings'];
 function currentUser(){const t=typeof Dbx!=='undefined'&&Dbx.tok();const a=t&&t.account;return a?{name:a.name||a.email||'',email:a.email||''}:{name:localStorage.getItem('sap.inspector')||'',email:''}}
-async function save(store,o,opt={}){let renum=null;if(store==='items'&&!opt.raw&&o.createdAt&&o.auditId){const prev=await DB.get('items',o.id);if(prev&&prev.auditId===o.auditId&&tradePfx(prev.category)!==tradePfx(o.category)){o.number=nextNumber(o.auditId,o.category,o.id);renum=o.projectId}}
+async function save(store,o,opt={}){let renum=null;if(store==='items'&&!opt.raw&&o.createdAt&&o.auditId){const prev=await DB.get('items',o.id);if(prev&&prev.auditId===o.auditId&&itemPfx(prev)!==itemPfx(o)){o.number=nextNumber(o.auditId,o.category,o.id,o.subcategory);renum=o.projectId}}
  if(store==='items'&&!opt.raw){if(o.status==='Closed'){if(!o.closedAt){const prev=o.createdAt?await DB.get('items',o.id):null;if(!prev||prev.status!=='Closed')o.closedAt=Date.now()}}else if(o.closedAt)delete o.closedAt} /* closing date recorded from now on (old closed issues: reports fall back to updatedAt) */
  let IP=null;if(store==='items'&&typeof itemPrepSave==='function'){IP=await itemPrepSave(o,opt);if(IP&&IP.renum){const r=IP.rec;await DB.put('items',r);Object.keys(o).forEach(k=>{if(!(k in r))delete o[k]});Object.assign(o,r);itBase(o);const a=S.items,i=a.findIndex(x=>x.id===o.id);if(i>=0)a[i]=o;else a.push(o);const b=bundleOf(store,o);if(b)Sync.markDirty(b);return o}
   if(IP&&IP.rec!==o){const r=IP.rec;Object.keys(o).forEach(k=>{if(!(k in r))delete o[k]});Object.assign(o,r)}}
@@ -39614,31 +39614,40 @@ const auditItems=aid=>S.items.filter(i=>i.auditId===aid);
 let _AS={arr:null,n:-1,m:null};
 function auditSeq(aid){if(_AS.arr!==S.audits||_AS.n!==S.audits.length){const m=new Map(),by=new Map();for(const a of S.audits.slice().sort((x,y)=>(x.createdAt||0)-(y.createdAt||0)||String(x.date||'').localeCompare(String(y.date||''))||(x.id<y.id?-1:x.id>y.id?1:0))){const k=(by.get(a.projectId)||0)+1;by.set(a.projectId,k);m.set(a.id,k)}_AS={arr:S.audits,n:S.audits.length,m}}return _AS.m.get(aid)||0}
 const insCode=aid=>'I'+(auditSeq(aid)||'?');
-/* Issue numbers are per (inspection, trade prefix): MEC-001, ELE-001 … restart in every inspection. Plumbing / HVAC / MEP → MEC; anything
- that matches no trade (or no trade set) → GEN. Cross-inspection views qualify the number: I2-MEC-001. */
-const TRADE_PFX=[[/fire|life\s*safety|\bfls\b|sprinkl|smoke/i,'FLS'],[/mech|plumb|drain|hvac|\bmep\b|sanitar|chill|duct|ventil|\bgas\b|pump/i,'MEC'],[/secur|cctv|\bcctv\b|access\s*control|intrusion/i,'SEC'],[/\belv\b|extra[\s-]*low|low[\s-]*current|\bit\s*network|\bwi-?\s?fi\b|telephon|\baudio|\bav\b|\ba\/v\b|iptv/i,'ELV'],
+/* Issue numbers are per (inspection, trade prefix): AC-001, PLU-001, MEC-001, ELE-001 … restart in every inspection.
+ HVAC / air-con → AC; Plumbing / Drainage → PLU; other Mechanical → MEC; unmatched / blank → GEN.
+ AC and PLU match before generic Mechanical (category and/or subcategory). */
+const TRADE_PFX=[
+ [/fire|life\s*safety|\bfls\b|sprinkl|smoke/i,'FLS'],
+ /* HVAC before Mechanical: Fares wants AC (not MEC) for HVAC / A/C / chillers / AHU / FCU / VRF / ductwork … */
+ [/hvac|\ba\/?c\b|air[\s-]*cond|chill|\bahu\b|\bfcu\b|\bvrf\b|duct|ventil|extract\s*fan|grille|diffuser|split\s*unit/i,'AC'],
+ /* Plumbing / drainage before Mechanical */
+ [/plumb|drain|sanitar|\bsoil\b|\bwaste\b|water\s*supply|water\s*tank|water\s*heater|\bbasin\b|\bwc\b|shower|tap\b|faucet/i,'PLU'],
+ [/mech|\bmep\b|\bgas\b|pump/i,'MEC'],
+ [/secur|cctv|\bcctv\b|access\s*control|intrusion/i,'SEC'],[/\belv\b|extra[\s-]*low|low[\s-]*current|\bit\s*network|\bwi-?\s?fi\b|telephon|\baudio|\bav\b|\ba\/v\b|iptv/i,'ELV'],
  [/elec|lighting|\bpower\b|cabl|wiring|containment|socket/i,'ELE'],
  [/struct|civil|concrete|steel|rebar|foundation/i,'STR'],[/arch|finish|paint|tiling|tile|floor|joinery|carpent|door|window|glaz|fa[cç]ade|plaster|blockwork|waterproof|ceiling|partition|cladding|masonry/i,'ARC'],
  [/landscap|external|hardscape/i,'EXT'],[/health|\bhse\b|safety/i,'HSE']];
-const PFX_ORDER=['ARC','STR','MEC','ELE','ELV','SEC','FLS','EXT','HSE']; // then custom trades (alphabetical), then GEN
+const PFX_ORDER=['ARC','STR','MEC','AC','PLU','ELE','ELV','SEC','FLS','EXT','HSE']; // then custom trades (alphabetical), then GEN
 const PFX_BUILTIN=new Set([...PFX_ORDER,'GEN']);
 /* custom trade (no keyword match) → own 3-letter prefix from its name, never one of the built-in prefixes; deterministic (same name → same prefix on every device) */
 function customPfx(name){const w=String(name).normalize('NFKD').replace(/[^A-Za-z0-9 ]+/g,' ').toUpperCase().split(/\s+/).filter(Boolean);if(!w.length)return'GEN';const all=w.join('');
  const c=[];if(w.length>=3)c.push(w[0][0]+w[1][0]+w[2][0]);if(w.length===2)c.push(w[0].slice(0,2)+w[1][0],w[0][0]+w[1].slice(0,2));c.push(all.slice(0,3));for(let i=1;i<all.length;i++)for(let j=i+1;j<all.length;j++)c.push(all[0]+all[i]+all[j]);
  const BAD=/^(SEX|ASS|FUK|FCK|CUM|TIT|NAZ|KKK|DIE|WTF|XXX|POO|PEE|GAY|FAG|NIG|JEW)$/;for(const x of c)if(x.length===3&&!PFX_BUILTIN.has(x)&&!BAD.test(x))return x;const two=(all+'XX').slice(0,2);for(const ch of'XQZJKVWYABCDFGHILMNOPRSTU')if(!PFX_BUILTIN.has(two+ch)&&!BAD.test(two+ch))return two+ch;return'GEN'} // report / list order of the trade groups
 const _PFX=new Map();
-const tradePfx=cat=>{const c=String(cat||'').trim();if(!c)return'GEN';if(_PFX.has(c))return _PFX.get(c);let r='GEN';const hit=x=>{for(const[re,p]of TRADE_PFX)if(re.test(x))return p;return''};
- /* a taxonomy subcategory used as the trade (older data / AI) → prefix of its parent trade */
- const parent=typeof TAXONOMY!=='undefined'&&!TAXONOMY[c]?Object.keys(TAXONOMY).find(t=>Object.keys(TAXONOMY[t]||{}).some(sb=>sb.toLowerCase()===c.toLowerCase())):null;
- r=(parent&&hit(parent))||hit(c)||(/^(general|gen|misc|miscellaneous|other|others|no trade)$/i.test(c)?'GEN':customPfx(c));_PFX.set(c,r);return r};
+const tradePfx=(cat,sub)=>{const c=String(cat||'').trim(),s=String(sub||'').trim();if(!c&&!s)return'GEN';const key=c+'\0'+s;if(_PFX.has(key))return _PFX.get(key);let r='GEN';const hit=x=>{if(!x)return'';for(const[re,p]of TRADE_PFX)if(re.test(x))return p;return''};
+ /* subcategory (or subcategory used as the trade) wins over a generic parent like Mechanical → so HVAC under Mechanical → AC */
+ const parent=typeof TAXONOMY!=='undefined'&&c&&!TAXONOMY[c]?Object.keys(TAXONOMY).find(t=>Object.keys(TAXONOMY[t]||{}).some(sb=>sb.toLowerCase()===c.toLowerCase())):null;
+ r=hit(s)||hit(c)||hit([c,s].filter(Boolean).join(' '))||(parent&&hit(parent))||(/^(general|gen|misc|miscellaneous|other|others|no trade)$/i.test(c||s)?'GEN':customPfx(c||s));_PFX.set(key,r);return r};
+const itemPfx=i=>!i?'GEN':tradePfx(i.category,i.subcategory);
 const pfxRank=p=>{const k=PFX_ORDER.indexOf(p);if(k>=0)return k;if(p==='GEN'||!p)return 99;const x=String(p);return 50+[...x].reduce((a,ch,i)=>a+(ch.charCodeAt(0)-47)/Math.pow(48,i+1),0)};
 const pad3=n=>String(n||0).padStart(3,'0');
-const issueNo=i=>!i?'':tradePfx(i.category)+'-'+pad3(i.number);
+const issueNo=i=>!i?'':itemPfx(i)+'-'+pad3(i.number);
 const issueRef=(i,ctx)=>!i?'':issueNo(i); // display ref is always just "MEC-003" (no I<k>- tag; Fares). Multi-inspection views show the inspection name/row instead. Never used as a key – links/flags resolve by id
-const numCmp=(a,b)=>pfxRank(tradePfx(a.category))-pfxRank(tradePfx(b.category))||auditSeq(a.auditId)-auditSeq(b.auditId)||(a.number||0)-(b.number||0)||(a.createdAt||0)-(b.createdAt||0); // trade group, inspection, number
+const numCmp=(a,b)=>pfxRank(itemPfx(a))-pfxRank(itemPfx(b))||auditSeq(a.auditId)-auditSeq(b.auditId)||(a.number||0)-(b.number||0)||(a.createdAt||0)-(b.createdAt||0); // trade group, inspection, number
 /* pin label – ONE model for every pin (in-app drawing viewer, PDF drawing pages, per-issue crops, print view): trade prefix small on top, number bold below.
    pinParts → plain text; pinLabel → HTML (only for HTML pins); pinFit → font sizes / positions that fit inside the pin head circle (canvas / PDF). */
-const pinParts=i=>({pfx:tradePfx((i||{}).category),num:String((i&&i.number)||'')});
+const pinParts=i=>({pfx:itemPfx(i||{}),num:String((i&&i.number)||'')});
 const pinText=i=>{const q=pinParts(i);return q.pfx+' '+q.num}; // plain text (titles, aria, CSV…)
 const pinLabel=(i,multi)=>{const q=pinParts(i);return`<small>${esc(q.pfx)}</small><b class="pn${q.num.length>2?' l':''}">${esc(q.num)}</b>`}; // HTML pins only – never pass to canvas / jsPDF
 /* fit a two-line label (pfx over num) inside a circle of radius r: measure(text,size,bold) → width. Returns sizes, baselines (relative to the circle centre) and the block box. */
@@ -39899,8 +39908,8 @@ function hydrate(root=document){$$('img[data-photo]',root).forEach(async im=>{if
 const projectFields=()=>[{k:'name',label:'Project name',req:true,full:true},{k:'reference',label:'Reference / job no.'},{k:'client',label:'Client'},{k:'address',label:'Site address',full:true},{k:'date',label:'Project date',type:'date'},companyField(),{k:'logo',label:'Project / client logo',type:'image'},{k:'notes',label:'Notes',type:'textarea',full:true}];
 const defaultInspector=()=>localStorage.getItem('sap.inspector')||currentUser().name||'';
 const auditFields=()=>[{k:'title',label:'Inspection title',req:true,full:true,ph:'e.g. Pre-handover inspection'},{k:'date',label:'Date',type:'date'},{k:'inspector',label:'Inspector'},{k:'weather',label:'Weather',type:'select',options:WEATHER},{k:'attendees',label:'Attendees / present'},{k:'notes',label:'Notes / general observations',type:'textarea',full:true},{k:'signature',label:'Inspector signature',type:'signature'}];
-function nextNumber(aid,cat,except){const p=tradePfx(cat);return auditItems(aid).reduce((m,i)=>i.id!==except&&tradePfx(i.category)===p?Math.max(m,i.number||0):m,0)+1} // per inspection and trade prefix
-async function newItem(auditId,extra={}){const a=byId('audits',auditId);const R=projRole(a.projectId);if(teamOn(byId('projects',a.projectId))&&R.desig&&!extra.raisedDesig)extra={raisedDesig:R.desig,...extra};const it={id:uid(),auditId,projectId:a.projectId,number:nextNumber(auditId,extra.category),title:'',description:'',location:'',category:'',subcategory:'',defectType:'',priority:'Medium',phase:'',status:'Open',assignee:'',dueDate:'',photos:[],pin:null,...extra};await save('items',it);return it}
+function nextNumber(aid,cat,except,sub){const p=tradePfx(cat,sub);return auditItems(aid).reduce((m,i)=>i.id!==except&&itemPfx(i)===p?Math.max(m,i.number||0):m,0)+1} // per inspection and trade prefix
+async function newItem(auditId,extra={}){const a=byId('audits',auditId);const R=projRole(a.projectId);if(teamOn(byId('projects',a.projectId))&&R.desig&&!extra.raisedDesig)extra={raisedDesig:R.desig,...extra};const it={id:uid(),auditId,projectId:a.projectId,number:nextNumber(auditId,extra.category,null,extra.subcategory),title:'',description:'',location:'',category:'',subcategory:'',defectType:'',priority:'Medium',phase:'',status:'Open',assignee:'',dueDate:'',photos:[],pin:null,...extra};await save('items',it);return it}
 async function deleteItem(it,renum=true){for(const ph of it.photos||[])await delPhoto(ph,it.projectId,it);await remove('items',it.id);return renum?fixNumbers(it.projectId):0}
 async function deleteAudit(a){for(const it of auditItems(a.id))await deleteItem(it,false);for(const c of S.checklists.filter(c=>c.auditId===a.id))await remove('checklists',c.id);await remove('audits',a.id);await fixNumbers(a.projectId)}
 async function deleteDrawing(d){for(const it of S.items.filter(i=>i.pin&&i.pin.drawingId===d.id)){it.pin=null;await save('items',it)}await delPhoto(d.imageId,d.projectId);await remove('drawings',d.id)}
@@ -39981,7 +39990,7 @@ const ACT={
  'csv-all':()=>download(`site-inspection-all-issues-${today()}.csv`,csvBlob(visAllItems().sort((a,b)=>a.projectId.localeCompare(b.projectId)||numCmp(a,b)))),
  wipe:async()=>{if(!await confirmBox('Delete ALL projects, inspections, issues, photos, drawings and templates from this browser? This cannot be undone. Export a backup first!'+(Dbx.connected()?' (Data already synced to Dropbox is not deleted there.)':''),'Delete'))return;for(const s of ALL_STORES)await DB.clear(s);photoCache.clear();await loadAll();await seed();toast(Dbx.connected()?'Local data deleted (the Dropbox copy is kept and will sync back unless you disconnect)':'All data deleted',4000);location.hash='#/';render()}};
 const CHG={
- 'item-field':async el=>{const f=el.closest('form');const it=f&&byId('items',f.dataset.id);if(!it)return;const k=el.name,v=el.value;if(k==='auditId'&&!v)return;const fromA=it.auditId;if(k==='auditId'&&v!==fromA)it.number=nextNumber(v,it.category,it.id);it[k]=v.trim?v.trim():v;if(k==='status')it.closedAt=v==='Closed'?Date.now():null;await save('items',it);toast('Saved',1000);if(k==='title'){const h=$('.page-head h1');if(h&&h.firstChild&&h.firstChild.nextSibling)h.firstChild.nextSibling.textContent=it.title||'Untitled issue';if($('#iv-name'))ivShow(ivCur())}if(k==='auditId'){if(v!==fromA){await fixNumbers(it.projectId);toast(`Moved to “${(byId('audits',v)||{}).title||'inspection'}” as ${issueNo(it)}`,2200)}render()}},
+ 'item-field':async el=>{const f=el.closest('form');const it=f&&byId('items',f.dataset.id);if(!it)return;const k=el.name,v=el.value;if(k==='auditId'&&!v)return;const fromA=it.auditId;if(k==='auditId'&&v!==fromA)it.number=nextNumber(v,it.category,it.id,it.subcategory);it[k]=v.trim?v.trim():v;if(k==='status')it.closedAt=v==='Closed'?Date.now():null;await save('items',it);toast('Saved',1000);if(k==='title'){const h=$('.page-head h1');if(h&&h.firstChild&&h.firstChild.nextSibling)h.firstChild.nextSibling.textContent=it.title||'Untitled issue';if($('#iv-name'))ivShow(ivCur())}if(k==='auditId'){if(v!==fromA){await fixNumbers(it.projectId);toast(`Moved to “${(byId('audits',v)||{}).title||'inspection'}” as ${issueNo(it)}`,2200)}render()}},
  'item-photos':el=>{const files=[...el.files];if(files.length)addPhotos(byId('items',el.dataset.id),files)},
  'upload-drawing':el=>{const f=el.files[0];if(f)uploadDrawing(el.dataset.id,f)},
  flt:el=>{const f=UI.filters[UI.list.key],k=el.dataset.k;f[k]=el.value;if(k==='category'){f.subcategory='';f.defectType=''}if(k==='subcategory')f.defectType='';if(k==='category'||k==='subcategory')refreshToolbar();refreshList()},
@@ -40549,7 +40558,7 @@ function safeRender(){const a=document.activeElement;if(a&&a.closest&&a.closest(
  are migrated by the same pass (order kept). */
 function numOrder(a,b){const ad=i=>{const x=i.auditId&&typeof byId==='function'&&byId('audits',i.auditId);return x?String(x.date||''):''};return(a.number||1e9)-(b.number||1e9)||(a.auditId!==b.auditId?ad(a).localeCompare(ad(b)):0)||(a.createdAt||0)-(b.createdAt||0)||(a.id<b.id?-1:a.id>b.id?1:0)}
 async function fixNumbers(pid){const p=byId('projects',pid);if(!p||p.stub)return 0;const R=projRole(p);if(R.mode==='none'||R.ro)return 0;
- const by=new Map();for(const i of projItems(pid)){const g=i.auditId+'|'+tradePfx(i.category);if(!by.has(g))by.set(g,[]);by.get(g).push(i)}let n=0; // one gap-free sequence per (inspection, trade prefix)
+ const by=new Map();for(const i of projItems(pid)){const g=i.auditId+'|'+itemPfx(i);if(!by.has(g))by.set(g,[]);by.get(g).push(i)}let n=0; // one gap-free sequence per (inspection, trade prefix)
  for(const its of by.values()){its.sort(numOrder);for(const[k,i]of its.entries())if(i.number!==k+1){i.number=k+1;await save('items',i,{keepBy:true,renum:true});n++}}
  if(n)cropCache.clear();return n}
 async function fixAllNumbers(){let n=0;for(const p of S.projects.slice())n+=await fixNumbers(p.id);return n}
@@ -41394,7 +41403,7 @@ function conData(pid,o){const p=byId('projects',pid),R=projRole(p);const audits=
 const subOrder=i=>{const s=taxSubs(i.category).indexOf(i.subcategory);return s<0?999:s};
 function conSubGroups(items){const g=new Map();for(const i of items){const t=i.category||'Unclassified',s=i.subcategory||'—';if(!g.has(t))g.set(t,new Map());const m=g.get(t);if(!m.has(s))m.set(s,[]);m.get(s).push(i)}return g}
 /* sections = trade groups (prefix), issues in number order inside (subcategory is shown on every issue) */
-function conGroups(items){const g=new Map();for(const i of items){const t=tradePfx(i.category);if(!g.has(t))g.set(t,new Map([['',[]]]));g.get(t).get('').push(i)}return g}
+function conGroups(items){const g=new Map();for(const i of items){const t=itemPfx(i);if(!g.has(t))g.set(t,new Map([['',[]]]));g.get(t).get('').push(i)}return g}
 const conGroupTitle=(t,list)=>{const n=[...new Set(list.map(i=>i.category||'No trade'))];return t+' · '+n.join(' / ')};
 function conTradeRows(all){const m=new Map();for(const i of all){const t=i.category||'Unclassified';const r=m.get(t)||{t,n:0,open:0,prog:0,closed:0,over:0,fin:0,fout:0};r.n++;if(i.status==='Open')r.open++;else if(i.status==='In Progress')r.prog++;else if(i.status==='Closed')r.closed++;if(isOver(i))r.over++;if(i.flag&&i.flag.status!=='returned')r.fin++;m.set(t,r)}
  for(const i of all)if(i.flag&&i.flag.fromTrade&&i.flag.status!=='returned'){const r=m.get(i.flag.fromTrade);if(r)r.fout++}
@@ -41459,7 +41468,7 @@ async function conPDF(d,o,opt={}){await coFresh();const{jsPDF}=window.jspdf;cons
    return pdfIssueLayout(C,f,[{label:'Description',text:it.description},{label:'Cross-trade flag',text:it.flag?flagText(it,p):'',col:[124,58,237]}],photos,extras,+o.perRow||4,{reserve:!!o.photos})};
   const av=()=>PH-16-(M+4),keepH=L=>14+(14+L.h<=av()?L.h:L.topH); // trade / subcategory headings stay with their first issue
   for(const[t,m]of conGroups(items)){const LS=new Map();for(const[s,list]of m){const ls=[];for(const it of list)ls.push(await lay(it));LS.set(s,ls)}
-   const tAll=all.filter(i=>tradePfx(i.category)===t),sH=charts?18.5:0;if(!first)ensure(40);first=false;ensure(13+sH+9+keepH(LS.values().next().value[0]));font(12,'bold',[255,255,255]);const n=[...m.values()].reduce((a,l)=>a+l.length,0);const gls=doc.splitTextToSize(`${conGroupTitle(t,[...m.values()].flat())}  ·  ${n} issue${n===1?'':'s'}`,PW-2*M-6),gh=9+(gls.length-1)*5.2;doc.setFillColor(...acc);doc.rect(M,y,PW-2*M,gh,'F');font(12,'bold',[255,255,255]);gls.forEach((l,j)=>T(l,M+3,y+6.2+j*5.2));y+=gh+2;
+   const tAll=all.filter(i=>itemPfx(i)===t),sH=charts?18.5:0;if(!first)ensure(40);first=false;ensure(13+sH+9+keepH(LS.values().next().value[0]));font(12,'bold',[255,255,255]);const n=[...m.values()].reduce((a,l)=>a+l.length,0);const gls=doc.splitTextToSize(`${conGroupTitle(t,[...m.values()].flat())}  ·  ${n} issue${n===1?'':'s'}`,PW-2*M-6),gh=9+(gls.length-1)*5.2;doc.setFillColor(...acc);doc.rect(M,y,PW-2*M,gh,'F');font(12,'bold',[255,255,255]);gls.forEach((l,j)=>T(l,M+3,y+6.2+j*5.2));y+=gh+2;
    if(charts&&tAll.length){y+=pdfTradeStrip(doc,tAll,M,y,PW-2*M)+4}else y+=2; /* trade summary strip: mini donut + status / importance / phase counts (all issues of the trade) */
    
    for(const[s,list]of m){const ls=LS.get(s);if(s){ensure(9+keepH(ls[0]));font(10.5,'bold',acc);T(s,M,y+2);doc.setDrawColor(...light);doc.setLineWidth(.4);doc.line(M,y+4,PW-M,y+4);y+=9}
@@ -41801,7 +41810,7 @@ function rcCharts(all,o={}){const acc=o.acc||'#0b5cab',out=[],T=all.length;if(!T
   out.push({id:'trade',title:'Issues by trade',insight:open1&&open1.n?`${open1.t} has the most open items (${open1.n})`:'Every trade\'s issues are closed',
    body:w=>rcBars(w,rows.map(r=>({label:r.label,muted:r.muted,segs:rcStatusSegs(r.list),total:r.list.length})),RC_STATUS.map(([s,c])=>[s==='In Progress'?'In progress':s,c]))})}
  /* 2b status per trade: one small donut per trade group (ARC, STR, MEC, ELE, FLS, …; only groups with issues) in a grid – 1–2 trades: half-width card, more: full width, wraps to new rows, rows centred */
- {const g=new Map();for(const i of all){const t=tradePfx(i.category);if(!g.has(t))g.set(t,[]);g.get(t).push(i)}
+ {const g=new Map();for(const i of all){const t=itemPfx(i);if(!g.has(t))g.set(t,[]);g.get(t).push(i)}
   const G=[...g.entries()].sort((a,b)=>pfxRank(a[0])-pfxRank(b[0])).map(([t,list])=>{const c=s=>list.filter(i=>i.status===s).length;return{t,list,label:conGroupTitle(t,list),n:list.length,open:c('Open'),prog:c('In Progress'),closed:c('Closed')}});G.forEach(x=>x.pct=rcPct(x.closed,x.n));
   const srt=[...G].sort((a,b)=>b.pct-a.pct||pfxRank(a.t)-pfxRank(b.t)),hi=srt[0],lo=srt[srt.length-1];
   out.push({id:'statusTrade',title:'Status by trade',wide:G.length>2,trades:G.map(x=>({t:x.t,label:x.label,n:x.n,open:x.open,prog:x.prog,closed:x.closed,pct:x.pct})),
