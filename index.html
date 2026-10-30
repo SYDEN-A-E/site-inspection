@@ -39912,7 +39912,7 @@ function hydrate(root=document){$$('img[data-photo]',root).forEach(async im=>{if
  $$('img[data-pincrop]',root).forEach(async im=>{const it=byId('items',im.dataset.pincrop);if(!it||!it.pin)return;const d=byId('drawings',it.pin.drawingId);if(!d)return;const k=it.id+it.pin.x+it.pin.y+it.status;let u=cropCache.get(k);if(!u){const c=await drawingCanvas(d,[it],{crop:it.pin,maxW:600});u=c.toDataURL('image/jpeg',.85);cropCache.set(k,u)}im.src=u})}
 
 /* ===== Forms ===== */
-const projectFields=()=>[{k:'name',label:'Project name',req:true,full:true},{k:'reference',label:'Reference / job no.'},{k:'client',label:'Client'},{k:'address',label:'Site address',full:true},{k:'date',label:'Project date',type:'date'},companyField(),{k:'logo',label:'Project / client logo',type:'image'},{k:'notes',label:'Notes',type:'textarea',full:true}];
+const projectFields=()=>[{k:'name',label:'Project name',req:true,full:true},{k:'reference',label:'Reference / job no.'},{k:'client',label:'Client'},{k:'address',label:'Site address',full:true},{k:'date',label:'Project date',type:'date'},companyField(),{k:'fullName',label:'Project full name / location (report cover, footer)',full:true,ph:'e.g. ESSQUE ZALU RESORT, NUNGWI, ZANZIBAR, TANZANIA'},{k:'rptTitle',label:'Report title',full:true,ph:'e.g. FLS AND MEP CONDITION ASSESSMENT REPORT'},{k:'rptNo',label:'Report number',ph:'Blank = <project>-ENG-RPT-001-r00'},{k:'issueDate',label:'Issue date',type:'date'},{k:'survey',label:'Survey',full:true,ph:'Blank = the inspections included (auto)'},{k:'logo',label:'Client / hotel logo (report cover & header)',type:'image'},{k:'notes',label:'Notes',type:'textarea',full:true}];
 const defaultInspector=()=>localStorage.getItem('sap.inspector')||currentUser().name||'';
 const auditFields=()=>[{k:'title',label:'Inspection title',req:true,full:true,ph:'e.g. Pre-handover inspection'},{k:'date',label:'Date',type:'date'},{k:'inspector',label:'Inspector'},{k:'weather',label:'Weather',type:'select',options:WEATHER},{k:'attendees',label:'Attendees / present'},{k:'notes',label:'Notes / general observations',type:'textarea',full:true},{k:'signature',label:'Inspector signature',type:'signature'}];
 function nextNumber(aid,cat,except,sub){const p=tradePfx(cat,sub);return auditItems(aid).reduce((m,i)=>i.id!==except&&itemPfx(i)===p?Math.max(m,i.number||0):m,0)+1} // per inspection and trade prefix
@@ -40106,9 +40106,9 @@ function reportData(scope,o){const isA=scope.type==='audit';let project,audits;
  return{project,audits,audit:isA?audits[0]:null,allItems:all,items,checklists:S.checklists.filter(c=>ids.has(c.auditId)),drawings:S.drawings.filter(d=>d.projectId===project.id)}}
 async function reportDialog(scope){const isA=scope.type==='audit';const obj=byId(isA?'audits':'projects',scope.id);const p=isA?byId('projects',obj.projectId):obj;
  const chk=(k,l,on=true)=>`<label class="chk"><input type="checkbox" name="${k}" ${on?'checked':''}> ${l}</label>`;
- const r=await modal({title:'Generate report',wide:true,body:`<div class="form-grid">${LGCHK_HTML}<label class="full"><span>Report title</span><input name="title" value="${esc(isA?p.name+' – '+obj.title:p.name)}"></label>
+ const r=await modal({title:'Generate report',wide:true,body:`<div class="form-grid">${LGCHK_HTML}<label class="full"><span>File name / title</span><input name="title" value="${esc(isA?p.name+' – '+obj.title:p.name)}"></label>
  <label><span>Report type (cover subtitle)</span><input name="subtitle" value="${isA?'Site Inspection Report':'Project Inspection Report'}" list="dl-sub"><datalist id="dl-sub"><option value="Site Inspection Report"><option value="Snagging Report"><option value="Punch List"><option value="Health & Safety Inspection"><option value="Property Condition Report"><option value="Defects Report"></datalist></label>
- <label><span>Theme colour</span><select name="color">${themeOpts(p)}</select></label>
+ ${rptFieldsHtml(p)}<label><span>Theme colour</span><select name="color">${themeOpts(p)}</select></label>
  
  <label><span>Issue order</span><select name="sort"><option value="number">By trade, then number</option><option value="priority">By importance</option><option value="phase">By priority (phase)</option><option value="location">By location</option></select></label>
  ${chk('closed','Include closed issues')}${chk('summary','Summary table')}${chk('photos','Photos')}${chk('pinrefs','Drawing location thumbnail per issue')}${chk('drawings','Drawings with pins')}${chk('checklists','Checklists')}${chk('charts','Include charts')}${notesChk(p,isA?obj:null)}</div>
@@ -40135,12 +40135,11 @@ async function generatePDF(d,o,opt={}){await coFresh();const{jsPDF}=window.jspdf
  const co=coInfo(coOf(p)),company=co.name;
  /* cover: large company logo, accent title block, key numbers */
  const all=d.allItems,cnt=s=>all.filter(i=>i.status===s).length,dts=d.audits.map(x=>x.date).filter(Boolean).sort();
- const cl=[[[p.code?'Project '+p.code:'',p.reference?'Ref '+p.reference:'',p.client?'Client: '+p.client:''].filter(Boolean).join('  ·  ')],
-  [a?`${a.title}${a.date?'  ·  '+fmtDate(a.date):''}${a.inspector?'  ·  '+a.inspector:''}`:`${rcPlural(d.audits.length,'inspection')}${dts.length?'  ·  '+fmtDate(dts[0])+(dts[dts.length-1]!==dts[0]?' – '+fmtDate(dts[dts.length-1]):''):''}`],[company?'Inspecting company: '+company:'',1]].filter(l=>l[0]);
- y=await pdfCover(doc,{co,p,acc,M,font,T,kicker:o.subtitle||'Site Inspection Report',title:o.title||p.name,lines:cl,when:'Generated '+fmtDT(Date.now())+(myName()?' by '+myName():''),all});
- const rows=[['Project',p.name],['Reference',p.reference],['Client',p.client],['Site address',p.address],['Project date',fmtDate(p.date)]];
- if(a)rows.push(['Inspection',a.title],['Inspection date',fmtDate(a.date)],['Inspector',a.inspector],['Weather',a.weather],['Attendees',a.attendees]);else rows.push(['Inspections included',d.audits.slice().sort((x,y)=>auditSeq(x.id)-auditSeq(y.id)).map(x=>`${x.title} (${fmtDate(x.date)}${x.inspector?', '+x.inspector:''})`).join('\n')]);
- rows.push(['Prepared by',[company,...co.lines].filter(Boolean).join('\n')]);
+ const RM=rptMeta(d,o);
+ y=await pdfCover(doc,{co,p,acc,M,font,T,kicker:RM.full,title:RM.title,lines:RM.month?[[RM.month,1]]:[],when:'',all});
+ const rows=[['Project',RM.full],['Reference',RM.no],['Client',p.client],['Site address',p.address],['Issue date',RM.issue],['Survey',RM.survey]];
+ if(a)rows.push(['Inspector',a.inspector],['Weather',a.weather],['Attendees',a.attendees]);
+ rows.push(['Prepared by',[(company||'').toUpperCase(),...co.lines].filter(Boolean).join('\n')]);
  for(const[k,v]of rows.filter(r=>r[1])){font(9.5,'normal');const ls=doc.splitTextToSize(String(v),PW-2*M-46).slice(0,6);const h=Math.max(6.4,ls.length*4.3+2.4);ensure(h);font(8,'bold',GREY);T(k.toUpperCase(),M,y);font(9.5,'normal');T(ls,M+46,y);doc.setDrawColor(230,234,240);doc.setLineWidth(.2);doc.line(M,y+h-4,PW-M,y+h-4);y+=h}
  if(!o.closed&&cnt('Closed'))
   {font(8,'italic',GREY);T(`Closed issues (${cnt('Closed')}) are excluded from this report's issue list.`,M,y);y+=6}
@@ -40192,13 +40191,13 @@ async function generatePDF(d,o,opt={}){await coFresh();const{jsPDF}=window.jspdf
  /* sign-off */
  const sg=d.audits.filter(x=>x.signature);if(sg.length){ensure(20);y+=4;heading('Sign-off');for(const x of sg){ensure(40);font(9,'bold');T(`${x.inspector||'Inspector'}`,M,y);font(8.5,'normal',GREY);T(`${x.title} · ${fmtDate(x.date)}`,M,y+4.5);const s=await imgSize(x.signature);const[w,h]=fit(s.w,s.h,70,24);doc.addImage(x.signature,'PNG',M,y+7,w,h);doc.setDrawColor(150,160,170);doc.line(M,y+32,M+80,y+32);y+=40}}
  /* page header + footer: inspecting company logo / name / address */
- await pdfChrome(doc,co,{M,left:o.title||p.name,font,T});const n=doc.getNumberOfPages();
+ await pdfChrome(doc,co,{M,left:RM.full,mid:RM.title,clogo:RM.clogo,font,T});const n=doc.getNumberOfPages();
  const fname=`${safeName(o.title||p.name)}_${today()}.pdf`;window.__lastPdf={name:fname,pages:n};if(!opt.noDownload)doc.save(fname);return doc}
 
 async function printView(d,o){const done=busy('Preparing print view…');try{await coFresh();const acc=o.color,lt=`rgb(${mix(hex2rgb(acc),.88).join(',')})`,p=d.project,a=d.audit,per=+o.perRow||3,all=d.allItems,co=coInfo(coOf(p)),logo=co.logo,clogo=p.logo&&p.logo!==co.logo?p.logo:'';
- const kv=[['Project',p.name],['Reference',p.reference],['Client',p.client],['Site address',p.address],['Project date',fmtDate(p.date)],...(a?[['Inspection',a.title],['Inspection date',fmtDate(a.date)],['Inspector',a.inspector],['Weather',a.weather],['Attendees',a.attendees]]:[['Inspections',d.audits.map(x=>`${x.title} (${fmtDate(x.date)})`).join(', ')]]),['Prepared by',[co.name,...co.lines].filter(Boolean).join('\n')],['Report date',fmtDT(Date.now())]].filter(r=>r[1]);
+ const RM=rptMeta(d,o);const kv=[['Project',RM.full],['Reference',RM.no],['Client',p.client],['Site address',p.address],['Issue date',RM.issue],['Survey',RM.survey],...(a?[['Inspector',a.inspector],['Weather',a.weather],['Attendees',a.attendees]]:[]),['Prepared by',[(co.name||'').toUpperCase(),...co.lines].filter(Boolean).join('\n')]].filter(r=>r[1]);
  let h=`<!doctype html><html><head><meta charset="utf-8"><title>${esc(o.title)}</title><style>.rn-page h3{margin:14px 0 6px;font-size:15px}.rn-page p{margin:0 0 8px;line-height:1.5}.rn-page ul,.rn-page ol{margin:0 0 10px 18px;padding:0}.rn-page li{margin:2px 0}
-@page{size:A4 portrait;margin:13mm}*{box-sizing:border-box}body{font:10.5pt/1.4 Helvetica,Arial,sans-serif;color:#1e2430;margin:0;padding:16px;-webkit-print-color-adjust:exact;print-color-adjust:exact}.runhead{display:flex;align-items:center;gap:10px;margin:14px 0 4px;padding:0 0 6px;border-bottom:1px solid #e2e8f0;font-size:8.5pt;color:#475569}.runhead img{height:26px;max-width:110px;object-fit:contain}.runhead span{margin-left:auto;color:#8a94a6}@media print{body{padding:0}}
+@page{size:A4 portrait;margin:13mm}*{box-sizing:border-box}body{font:10.5pt/1.4 Helvetica,Arial,sans-serif;color:#1e2430;margin:0;padding:16px;-webkit-print-color-adjust:exact;print-color-adjust:exact}.runhead{display:flex;align-items:center;gap:10px;margin:14px 0 4px;padding:0 0 6px;border-bottom:1px solid #e2e8f0;font-size:8.5pt;color:#475569}.runhead img{height:26px;max-width:110px;object-fit:contain}.runhead>span{flex:1;display:flex}.runhead .rc{justify-content:center}@media print{body{padding:0}}
 .cover{background:${acc};color:#fff;padding:26px;border-radius:6px;display:flex;justify-content:space-between;gap:20px}.cover h1{margin:6px 0;font-size:24pt}.cover .lg{background:#fff;border-radius:6px;padding:8px;align-self:flex-start}.cover .lg img{max-width:150px;max-height:84px;display:block}.cover .lgs{display:flex;flex-direction:column;gap:8px;align-self:flex-start}.cover .co{margin-top:14px;font-weight:bold}.cofoot{margin-top:28px;border-top:1px solid #dde3ea;padding-top:8px;font-size:8pt;color:#778;text-align:center}
 h2{color:${acc};border-bottom:2px solid ${acc};padding-bottom:4px;margin:24px 0 12px;font-size:15pt}dl{display:grid;grid-template-columns:150px 1fr;gap:5px 12px;margin:18px 0}dt{color:#667;font-weight:bold;font-size:8.5pt;text-transform:uppercase}dd{margin:0;white-space:pre-wrap}
 .stats{display:flex;gap:8px;margin:14px 0}.stats div{flex:1;border:1px solid #dde3ea;border-radius:6px;padding:8px;text-align:center;font-size:8pt;color:#667;text-transform:uppercase;font-weight:bold}.stats b{display:block;font-size:18pt}
@@ -40208,7 +40207,7 @@ table{width:100%;border-collapse:collapse;font-size:9pt}th{background:${acc};col
 .noph{height:34mm;border:1px solid #e2e8f0;background:#f4f6f9;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#969eaa;font-size:9pt}.ib .main figure{margin:0 0 8px;break-inside:avoid;page-break-inside:avoid}.ib .main img{width:auto;max-width:100%;height:auto;max-height:110mm;display:block;margin:0 auto}.ib .main figcaption.ucap{font-style:italic;font-weight:normal;margin-top:3px;color:#475569;text-align:center}.kv{display:grid;grid-template-columns:28mm 1fr;gap:3px 8px;font-size:9.5pt}.nophoto .kv{grid-template-columns:28mm 1fr 28mm 1fr}.kv small,small.bl{color:#778;font-size:7.5pt;font-weight:bold;text-transform:uppercase;padding-top:2px}small.bl{display:block;margin-top:10px}.kv .over{color:#be123c;font-weight:bold}figcaption{font-size:8pt;color:#667}.desc p{margin:0 0 6px}.desc ul,.desc ol{margin:0 0 8px 18px;padding:0}.desc li{margin:2px 0}.desc b{font-weight:700}.desc u{text-decoration:underline}
 ${RC_CSS}:root{--acc:${acc}}
 .chip{color:#fff;border-radius:4px;padding:1px 7px;font-size:8.5pt;margin-left:4px;white-space:nowrap}.pb{break-before:page;page-break-before:always}.dw img{max-width:100%;max-height:235mm;display:block;margin:auto;border:1px solid #ccd}.desc{white-space:normal}.sec td{background:${lt}!important;font-weight:bold;color:${acc}}
-</style></head><body><div class="cover"><div><div style="font-weight:bold;letter-spacing:.06em">${esc((o.subtitle||'').toUpperCase())}</div><h1>${esc(o.title)}</h1><div>${esc([p.client,p.address].filter(Boolean).join(' · '))}</div>${co.name?`<div class="co">Inspecting company: ${esc(co.name)}</div>`:''}</div>${logo||clogo?`<div class="lgs">${logo?`<div class="lg"><img src="${logo}" alt="${esc(co.name)}"></div>`:''}${clogo?`<div class="lg"><img src="${clogo}" alt=""></div>`:''}</div>`:''}</div>${logo||(o.title||p.name)?`<div class="runhead">${logo?`<img src="${logo}" alt="">`:''}<span>${esc(o.title||p.name)}</span></div>`:''}
+</style></head><body><div class="cover"><div><div class="kick" style="font-weight:bold;letter-spacing:.06em">${esc(RM.full.toUpperCase())}</div><h1>${esc(RM.title)}</h1><div class="co">${esc(RM.month)}</div></div>${logo||clogo?`<div class="lgs">${logo?`<div class="lg"><img src="${logo}" alt="${esc(co.name)}"></div>`:''}${clogo?`<div class="lg"><img src="${clogo}" alt=""></div>`:''}</div>`:''}</div>${logo||clogo?`<div class="runhead"><span class="rl">${logo?`<img src="${logo}" alt="">`:''}</span><span class="rc">${clogo?`<img src="${clogo}" alt="">`:''}</span><span class="rr"></span></div>`:''}
 <dl>${kv.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${[a?a.notes:'',p.notes].filter(Boolean).map(n=>`<p class="desc">${esc(n)}</p>`).join('')}`;
  if(o.charts!==false&&all.length)h+=`<h2 class="pb">Executive summary</h2>${svgExecSummary(all,{acc,progress:rcSpansDays(all,d.audits)})}`;
  const items=d.items;if(o.summary&&items.length)h+=`<h2 class="pb">Summary of issues</h2><table><tr><th>#</th><th>Issue</th><th>Location</th><th>Trade</th><th>Importance</th><th>Priority</th><th>Status</th><th>Assignee</th><th>Due</th></tr>${items.map(i=>`<tr><td><b>${a?issueNo(i):issueRef(i)}</b></td><td>${esc(i.title)}</td><td>${esc(i.location)}</td><td>${esc(i.category?catDisp(i.category):'')}${i.defectType?`<br><small>${esc(i.defectType)}</small>`:''}</td><td style="color:${PRIO_COLOR[i.priority]};font-weight:bold">${i.priority}</td><td>${phaseLabel(i.phase)||'–'}</td><td style="color:${STATUS_COLOR[i.status]};font-weight:bold">${i.status}</td><td>${esc(i.assignee)}</td><td ${isOver(i)?'style="color:#be123c;font-weight:bold"':''}>${fmtDate(i.dueDate)}</td></tr>`).join('')}</table>`;
@@ -40223,7 +40222,7 @@ ${RC_CSS}:root{--acc:${acc}}
  if(o.checklists&&d.checklists.length){h+=`<h2 class="pb">Checklists</h2>`;for(const c of d.checklists)h+=`<h3>${esc(c.name)}</h3><table><tr><th>Question</th><th style="width:60px">Answer</th><th>Comment</th></tr>${c.questions.map(q=>q.section?`<tr class="sec"><td colspan="3">${esc(q.text)}</td></tr>`:`<tr><td>${esc(q.text)}</td><td style="font-weight:bold;color:${{yes:'#16a34a',no:'#dc2626',na:'#64748b'}[q.answer]||'#999'}">${{yes:'YES',no:'NO',na:'N/A'}[q.answer]||'–'}</td><td>${esc(q.comment||'')}</td></tr>`).join('')}</table>`}
  if(o.drawings)for(const dr of d.drawings){const pinned=items.filter(i=>i.pin&&i.pin.drawingId===dr.id);if(!pinned.length)continue;const c=await drawingCanvas(dr,items,{maxW:2000});h+=`<div class="pb dw"><h2>Drawing: ${esc(dr.name)}</h2><img src="${c.toDataURL('image/jpeg',.85)}"><p style="font-size:9pt">${pinned.map(i=>`<b style="color:${STATUS_COLOR[i.status]}">${a?issueNo(i):issueRef(i)}</b> ${esc(i.title)}`).join(' &nbsp;·&nbsp; ')}</p></div>`}
  const sg=d.audits.filter(x=>x.signature);if(sg.length)h+=`<h2>Sign-off</h2>${sg.map(x=>`<div style="margin-bottom:14px"><img src="${x.signature}" style="height:70px"><div style="border-top:1px solid #999;width:260px;padding-top:4px"><b>${esc(x.inspector||'Inspector')}</b> · ${esc(x.title)} · ${fmtDate(x.date)}</div></div>`).join('')}`;
- h+=`<div class="cofoot">${esc([co.name,co.footer].filter(Boolean).join(' · '))}${co.lines.length?'<br>'+esc(coLine(co)):''}</div></body></html>`;
+ h+=`<div class="cofoot" style="display:flex;justify-content:space-between;gap:12px"><span>${esc(RM.full)}</span><span>${esc(RM.title)}</span></div></body></html>`;
  const fr=document.createElement('div');fr.className='report-frame';fr.innerHTML=`<div class="bar"><b style="flex:1">Print preview – ${esc(o.title)}</b><button class="btn sm primary" data-p>${ic('print')} Print / Save as PDF</button>${Dbx.connected()?`<button class="btn sm" data-dbx>${ic('upload')} Save PDF to Dropbox</button>`:''}<button class="btn sm" data-c>Close</button></div><iframe title="Report"></iframe>`;document.body.appendChild(fr);const ifr=fr.querySelector('iframe');ifr.srcdoc=h;
  fr.querySelector('[data-p]').onclick=()=>ifr.contentWindow.print();fr.querySelector('[data-c]').onclick=()=>fr.remove();const db=fr.querySelector('[data-dbx]');if(db)db.onclick=async()=>{const dn=busy('Generating PDF for Dropbox…');try{const doc=await generatePDF(d,o,{noDownload:true});dn();await Sync.uploadReport(doc.output('blob'),d,o)}catch(e){alertBox('Failed: '+e.message)}finally{dn()}}}finally{done()}}
 
@@ -41416,14 +41415,14 @@ function conTradeRows(all){const m=new Map();for(const i of all){const t=i.categ
 const raisedBy=(i,p)=>personLabel(p,i.createdByEmail,i.createdBy,i.raisedDesig);
 const flagText=(i,p)=>{const f=i.flag;if(!f)return'';return`${personLabel(p,f.byEmail,f.byName,f.byDesig)} (${f.fromTrade||'–'}) → ${f.toTrade}${f.toName?' / '+f.toName:''} · ${f.status}${f.status==='returned'&&f.returnNote?': '+f.returnNote:''}`};
 async function conDialog(pid){const p=byId('projects',pid),R=projRole(p);if(R.mode==='none')return;const aus=S.audits.filter(a=>a.projectId===pid).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
- const r=await modal({title:R.admin?'Consolidated report':'Report – my trades',wide:true,body:`<div class="form-grid">${LGCHK_HTML}<label class="full"><span>Report title</span><input name="title" value="${esc(p.name+' – Consolidated inspection report')}"></label>
+ const r=await modal({title:R.admin?'Consolidated report':'Report – my trades',wide:true,body:`<div class="form-grid">${LGCHK_HTML}<label class="full"><span>File name / title</span><input name="title" value="${esc(p.name+' – Consolidated inspection report')}"></label>${rptFieldsHtml(p)}
   ${R.admin?'':`<p class="help full" style="margin:0">Includes only the issues you can see: ${esc(roleScopeText(p))}</p>`}
   <div class="full"><span class="small muted">Inspections</span><div class="con-aud">${aus.map(a=>`<label class="chk"><input type="checkbox" name="aud" value="${a.id}" checked> ${esc(a.title)} <span class="muted small">${fmtDate(a.date)}</span></label>`).join('')||'<p class="help">No inspections yet.</p>'}</div></div>
   <label><span>Theme colour</span><select name="color">${themeOpts(p)}</select></label>
   
   <label class="chk"><input type="checkbox" name="closed" checked> Include closed issues</label><label class="chk"><input type="checkbox" name="photos" checked> Photos</label><label class="chk"><input type="checkbox" name="charts" checked> Include charts</label>${notesChk(p,null)}</div>`,
   buttons:[{label:'Cancel',value:null},{label:'CSV',value:'csv'},{label:'Export to Word',value:'word'},...(Dbx.connected()?[{label:'Save PDF to Dropbox',value:'dbx'}]:[]),{label:'Download PDF',value:'pdf',cls:'primary'}],
-  onOpen:(el,close)=>logoCheck(el.querySelector('#lgchk'),p,close),collect:(el,v)=>({v,o:{title:el.querySelector('[name=title]').value.trim()||p.name,color:el.querySelector('[name=color]').value,closed:el.querySelector('[name=closed]').checked,photos:el.querySelector('[name=photos]').checked,charts:el.querySelector('[name=charts]').checked,notes:!!(el.querySelector('[name=notes]')||{}).checked,audits:$$('[name=aud]:checked',el).map(x=>x.value)}})});
+  onOpen:(el,close)=>logoCheck(el.querySelector('#lgchk'),p,close),collect:(el,v)=>({v,o:{...rptFieldsCollect(el),title:el.querySelector('[name=title]').value.trim()||p.name,color:el.querySelector('[name=color]').value,closed:el.querySelector('[name=closed]').checked,photos:el.querySelector('[name=photos]').checked,charts:el.querySelector('[name=charts]').checked,notes:!!(el.querySelector('[name=notes]')||{}).checked,audits:$$('[name=aud]:checked',el).map(x=>x.value)}})});
  if(!r)return;if(!r.o.audits.length)return alertBox('Choose at least one inspection.');const d=conData(pid,r.o);
  if(r.v==='csv')return download(`${safeName(d.fileName)}.csv`,conCsvBlob(d.items,p));
  if(r.v==='word'){const o={...r.o,title:r.o.title||d.fileName};return exportDocx(d,o)}
@@ -41444,10 +41443,10 @@ async function conPDF(d,o,opt={}){await coFresh();const{jsPDF}=window.jspdf;cons
  const co=coInfo(coOf(p)),company=co.name;
  /* cover: large company logo, accent title block, key numbers */
  const all=d.allItems,cnt=s=>all.filter(i=>i.status===s).length,dts=d.audits.map(x=>x.date).filter(Boolean).sort(),charts=o.charts!==false;
- const cl=[[[p.code?'Project '+p.code:'',p.client?'Client: '+p.client:''].filter(Boolean).join('  ·  ')],[`${rcPlural(d.audits.length,'inspection')}${dts.length?'  ·  '+fmtDate(dts[0])+(dts[dts.length-1]!==dts[0]?' – '+fmtDate(dts[dts.length-1]):''):''}${d.full?'':'  ·  '+roleScopeText(p)}`],[company?'Inspecting company: '+company:'',1]].filter(l=>l[0]);
- y=await pdfCover(doc,{co,p,acc,M,font,T,kicker:d.full?'Consolidated inspection report':'Inspection report – '+(d.role.desig?desigOf(d.role.desig).label:'my trades'),title:o.title||p.name,lines:cl,when:'Generated '+fmtDT(Date.now())+(myName()?' by '+myName():''),all});
- const rows=[['Project',p.folderName||p.name],['Project code',p.code],['Client',p.client],['Site address',p.address],['Dropbox folder',pfLinked(p)?p.dbx.path:''],['Inspections included',d.audits.slice().sort((x,y)=>auditSeq(x.id)-auditSeq(y.id)).map(x=>`${x.title} (${fmtDate(x.date)}${x.inspector?', '+x.inspector:''})`).join('\n')],
-  ['Project team',(p.team||[]).map(m=>`${m.name||m.email} – ${desigOf(m.designation).label}${m.role==='admin'||eqEmail(m.email,p.ownerEmail)?' (admin)':''}`).join('\n')],['Scope',d.full?'All trades':roleScopeText(p)],['Cross-trade flags',d.flagged.length?String(d.flagged.length):''],['Prepared by',[company,...co.lines].filter(Boolean).join('\n')]];
+ const RM=rptMeta(d,{...o,subtitle:d.full?'Consolidated inspection report':'Inspection report – '+(d.role.desig?desigOf(d.role.desig).label:'my trades')});
+ y=await pdfCover(doc,{co,p,acc,M,font,T,kicker:RM.full,title:RM.title,lines:RM.month?[[RM.month,1]]:[],when:'',all});
+ const rows=[['Project',RM.full],['Reference',RM.no],['Client',p.client],['Site address',p.address],['Issue date',RM.issue],['Dropbox folder',pfLinked(p)?p.dbx.path:''],['Survey',RM.survey],
+  ['Project team',(p.team||[]).map(m=>`${m.name||m.email} – ${desigOf(m.designation).label}${m.role==='admin'||eqEmail(m.email,p.ownerEmail)?' (admin)':''}`).join('\n')],['Scope',d.full?'All trades':roleScopeText(p)],['Cross-trade flags',d.flagged.length?String(d.flagged.length):''],['Prepared by',[(company||'').toUpperCase(),...co.lines].filter(Boolean).join('\n')]];
  for(const[k,v]of rows.filter(r=>r[1])){font(9.5,'normal');const ls=doc.splitTextToSize(String(v),PW-2*M-46).slice(0,10);const h=Math.max(6.4,ls.length*4.3+2.4);ensure(h);font(8,'bold',GREY);T(k.toUpperCase(),M,y);font(9.5,'normal');T(ls,M+46,y);doc.setDrawColor(230,234,240);doc.setLineWidth(.2);doc.line(M,y+h-4,PW-M,y+h-4);y+=h}
  if(!all.length){y+=3;ensure(8);font(9,'italic',GREY);T('No issues are recorded for this report.',M,y);y+=6}
  /* executive summary: charts (vector, drawn natively) */
@@ -41483,7 +41482,7 @@ async function conPDF(d,o,opt={}){await coFresh();const{jsPDF}=window.jspdf;cons
      doc.setFillColor(...light);doc.rect(M,y,PW-2*M,bh,'F');font(11,'bold',acc);T(nt,M+3,y+6.1);font(10.5,'bold');tls.forEach((l,j)=>T(l,M+3+nw,y+6.1+j*PDF_HL));chip(it.status,PW-M-2-sw,y+6,STATUS_COLOR[it.status]);chip(it.priority,PW-M-4-sw-pw,y+6,PRIO_COLOR[it.priority]);if(phl)chip(phl,PW-M-4-sw-pw-fw,y+6,PHASE_COLOR);y+=bh+4;
      y=await L.draw(y);drewIssue=true;
      y+=1;doc.setDrawColor(226,232,240);doc.setLineWidth(.3);doc.line(M,y,PW-M,y);y+=6}}}}
- await pdfChrome(doc,co,{M,left:o.title||p.name,font,T});const n=doc.getNumberOfPages();
+ await pdfChrome(doc,co,{M,left:RM.full,mid:RM.title,clogo:RM.clogo,font,T});const n=doc.getNumberOfPages();
  const fname=`${safeName(d.fileName)}.pdf`;window.__lastPdf={name:fname,pages:n,consolidated:true};if(!opt.noDownload)doc.save(fname);return doc}
 Object.assign(ACT,{'con-report':el=>conDialog(el.dataset.id)});
 
@@ -41617,11 +41616,26 @@ async function pdfLogo(doc,data,x,y,bw,bh,alias,left){data=await logoPng(data);i
 async function pdfCoverLogos(doc,co,p,PW,M){const L=co.logo,C=p.logo&&p.logo!==L?p.logo:'';if(!L&&!C)return 0;doc.setFillColor(255,255,255);
  if(L){doc.roundedRect(PW-M-44,12,44,30,2,2,'F');await pdfLogo(doc,L,PW-M-41,14,38,26,'co-logo')}
  if(C){const y0=L?46:12,h0=L?22:30;doc.roundedRect(PW-M-44,y0,44,h0,2,2,'F');await pdfLogo(doc,C,PW-M-41,y0+2,38,h0-4,'client-logo')}return 52}
-async function pdfChrome(doc,co,{M,left,font,T}){const n=doc.getNumberOfPages(),line=coLine(co);for(let i=1;i<=n;i++){doc.setPage(i);const w=doc.internal.pageSize.getWidth(),h=doc.internal.pageSize.getHeight();
-  if(i>1){if(co.logo){try{await pdfLogo(doc,co.logo,M,4.2,24,7.5,'co-logo',true)}catch(e){}}font(7.5,'normal',[130,140,155]);T(doc.splitTextToSize(left,w/2-M)[0],w-M,9.6,{align:'right'});doc.setDrawColor(226,232,240);doc.setLineWidth(.3);doc.line(M,12.6,w-M,12.6);
+/* ===== Report admin fields (project level, overridable per report): full name, title, number, issue date, survey ===== */
+const RPT_MONTHS=['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
+const rptDay=s=>{const x=new Date(/^\d{4}-\d{2}-\d{2}$/.test(s||'')?s+'T00:00':s||Date.now());return isNaN(x)?null:x};
+const rptNoDefault=p=>String((p.folderName||p.name||p.code||'PROJECT')).replace(/\s+/g,'')+'-ENG-RPT-001-r00';
+function rptSurveyAuto(d){const aus=(d.audit?[d.audit]:(d.audits||[]).slice().sort((x,y)=>(typeof auditSeq==='function'?auditSeq(x.id)-auditSeq(y.id):0)));return aus.map(x=>`${x.title} (${fmtDate(x.date)}${x.inspector?', '+x.inspector:''})`).join('\n')}
+function rptMeta(d,o={}){const p=d.project||{},v=k=>String(o[k]||p[k]||'').trim();const dt=rptDay(v('issueDate')||today());
+ return{full:v('fullName')||p.name||'',title:v('rptTitle')||o.subtitle||'Site Inspection Report',no:v('rptNo')||rptNoDefault(p),
+  issue:dt?`${dt.getDate()} ${RPT_MONTHS[dt.getMonth()]} ${dt.getFullYear()}`:v('issueDate'),month:dt?`${RPT_MONTHS[dt.getMonth()]} ${dt.getFullYear()}`:'',
+  survey:v('survey')||rptSurveyAuto(d),clogo:p.logo&&p.logo!==(coInfo(coOf(p))||{}).logo?p.logo:''}}
+/* report dialog inputs (pre-filled from the project; blank = project value / default) */
+function rptFieldsHtml(p){const e=k=>esc(p[k]||'');return`<label class="full"><span>Project full name / location</span><input name="fullName" value="${e('fullName')}" placeholder="${esc(p.name||'')}"></label>
+ <label class="full"><span>Report title</span><input name="rptTitle" value="${e('rptTitle')}" placeholder="e.g. FLS AND MEP CONDITION ASSESSMENT REPORT"></label>
+ <label><span>Report number</span><input name="rptNo" value="${e('rptNo')}" placeholder="${esc(rptNoDefault(p))}"></label>
+ <label><span>Issue date</span><input type="date" name="issueDate" value="${e('issueDate')||today()}"></label>
+ <label class="full"><span>Survey</span><input name="survey" value="${e('survey')}" placeholder="Blank = the inspections included (auto)"></label>`}
+const rptFieldsCollect=el=>{const o={};for(const k of['fullName','rptTitle','rptNo','issueDate','survey']){const i=el.querySelector(`[name=${k}]`);if(i)o[k]=i.value.trim()}return o};
+async function pdfChrome(doc,co,{M,left,mid,clogo,font,T}){const n=doc.getNumberOfPages();for(let i=1;i<=n;i++){doc.setPage(i);const w=doc.internal.pageSize.getWidth(),h=doc.internal.pageSize.getHeight();
+  if(i>1){if(co.logo){try{await pdfLogo(doc,co.logo,M,4.2,24,7.5,'co-logo',true)}catch(e){}}if(clogo){try{await pdfLogo(doc,clogo,w/2-20,3.4,40,8.6,'client-logo')}catch(e){}}doc.setDrawColor(226,232,240);doc.setLineWidth(.3);doc.line(M,12.6,w-M,12.6);
    doc.line(M,h-12.5,w-M,h-12.5)}
-  font(7.5,'normal',[130,140,155]);T(doc.splitTextToSize(left,w/2-M-10)[0],M,h-8);const mid=[co.name,co.footer].filter(Boolean).join(' · ');if(mid)T(doc.splitTextToSize(mid,w/3)[0],w/2,h-8,{align:'center'});T(`Page ${i} of ${n}`,w-M,h-8,{align:'right'});
-  if(line){font(6.5,'normal',[150,158,170]);T(doc.splitTextToSize(line,w-2*M)[0],w/2,h-4,{align:'center'})}}}
+  font(7.5,'normal',[130,140,155]);const cw=w/2-M-34;if(left)T(doc.splitTextToSize(left,cw).slice(0,2),M,h-8);if(mid)T(doc.splitTextToSize(mid,cw).slice(0,2),w/2,h-8,{align:'center'});T(`Page ${i} of ${n}`,w-M,h-8,{align:'right'})}}
 /* ---- PDF issue block body (all PDF reports):
  LEFT column ≈47 %: photos stack here whenever text is on the RIGHT.
  Pack as many photos as fit in the left column of the SAME page as the text
@@ -41915,9 +41929,9 @@ function rcKeyNums(all){const c=s=>all.filter(i=>i.status===s).length,T=all.leng
 async function pdfCover(doc,{co,p,acc,M,font,T,kicker,title,lines,when,all}){const PW=doc.internal.pageSize.getWidth();const W=[255,255,255];
  let lw=0;if(co.logo){try{lw=await pdfLogo(doc,co.logo,M,10,78,30,'co-logo',true)}catch(e){lw=0}}if(!lw&&co.name){font(18,'bold',acc);T(rcFit(co.name,PW-2*M-50,18,true),M,28)}
  const cl=p.logo&&p.logo!==co.logo?p.logo:'';if(cl){try{await pdfLogo(doc,cl,PW-M-46,12,46,24,'client-logo')}catch(e){}}
- const tl=doc.splitTextToSize(title,PW-2*M-12).slice(0,6);font(24,'bold');const bandH=24+tl.length*9.6+lines.length*5.6+16;const y0=48;doc.setFillColor(...acc);doc.rect(0,y0,PW,bandH,'F');doc.setFillColor(...mix(acc,.25));doc.rect(0,y0+bandH-1.6,PW,1.6,'F');
- let y=y0+12;font(9.5,'bold',W);doc.setCharSpace(.6);T(String(kicker).toUpperCase(),M,y);doc.setCharSpace(0);y+=11;font(24,'bold',W);T(tl,M,y);y+=tl.length*9.6;
- for(const[l,b]of lines){font(b?10:11,b?'bold':'normal',W);T(rcFit(l,PW-2*M,b?10:11,!!b),M,y);y+=5.6}font(8.5,'normal',mix(acc,.6));T(rcFit(when,PW-2*M,8.5),M,y0+bandH-5);
+ font(24,'bold');const tl=doc.splitTextToSize(title,PW-2*M-12).slice(0,6);const bandH=24+tl.length*9.6+lines.length*5.6+16;const y0=48;doc.setFillColor(...acc);doc.rect(0,y0,PW,bandH,'F');doc.setFillColor(...mix(acc,.25));doc.rect(0,y0+bandH-1.6,PW,1.6,'F');
+ let y=y0+12;font(9.5,'bold',W);doc.setCharSpace(.6);T(rcFit(String(kicker).toUpperCase(),PW-2*M-20,9.5,true),M,y);doc.setCharSpace(0);y+=11;font(24,'bold',W);T(tl,M,y);y+=tl.length*9.6;
+ for(const[l,b]of lines){font(b?10:11,b?'bold':'normal',W);T(rcFit(l,PW-2*M,b?10:11,!!b),M,y);y+=5.6}font(8.5,'normal',mix(acc,.6));if(when)T(rcFit(when,PW-2*M,8.5),M,y0+bandH-5);
  /* key-numbers strip removed – status counts live in the report body (charts / summaries) */
  return y0+bandH+10}
 
@@ -42467,11 +42481,11 @@ async function generateDocx(d,o,opt={}){if(!docxReady())throw new Error('Word ex
  const p=d.project,a=d.audit,items=d.items,all=d.allItems,co=coInfo(coOf(p)),acc=(o.color||'#0b5cab').replace('#','');
  const children=[];
  /* cover */
- children.push(new Paragraph({spacing:{after:200},children:[new TextRun({text:(o.subtitle||'Site Inspection Report').toUpperCase(),bold:true,size:18,color:acc,font:'Calibri'})]}));
- children.push(new Paragraph({heading:HeadingLevel.TITLE,children:[new TextRun({text:o.title||p.name,bold:true,size:48,color:acc,font:'Calibri'})]}));
- if(p.client||p.address)children.push(new Paragraph({spacing:{after:120},children:[new TextRun({text:[p.client,p.address].filter(Boolean).join(' · '),size:22,font:'Calibri'})]}));
- if(co.name)children.push(new Paragraph({spacing:{after:200},children:[new TextRun({text:'Inspecting company: '+co.name,bold:true,size:22,font:'Calibri'})]}));
- const coverKV=[['Project',p.name],['Reference',p.reference],['Client',p.client],['Site address',p.address],...(a?[['Inspection',a.title],['Date',fmtDate(a.date)],['Inspector',a.inspector]]:[['Inspections',d.audits.map(x=>x.title+' ('+fmtDate(x.date)+')').join(', ')]]),['Report date',fmtDT(Date.now())]];
+ const RM=rptMeta(d,o);
+ children.push(new Paragraph({spacing:{after:200},children:[new TextRun({text:RM.full.toUpperCase(),bold:true,size:18,color:acc,font:'Calibri'})]}));
+ children.push(new Paragraph({heading:HeadingLevel.TITLE,children:[new TextRun({text:RM.title,bold:true,size:48,color:acc,font:'Calibri'})]}));
+ if(RM.month)children.push(new Paragraph({spacing:{after:200},children:[new TextRun({text:RM.month,bold:true,size:22,font:'Calibri'})]}));
+ const coverKV=[['Project',RM.full],['Reference',RM.no],['Client',p.client],['Site address',p.address],['Issue date',RM.issue],['Survey',RM.survey],...(a?[['Inspector',a.inspector]]:[]),['Prepared by',[(co.name||'').toUpperCase(),...co.lines].filter(Boolean).join('\n')]];
  children.push(docxKV(coverKV));
  const cnt=s=>all.filter(i=>i.status===s).length;
  /* charts → summary tables (images optional; tables always present) */
@@ -42510,13 +42524,17 @@ async function generateDocx(d,o,opt={}){if(!docxReady())throw new Error('Word ex
    children.push(new Table({width:{size:100,type:WidthType.PERCENTAGE},columnWidths:[4200,4800],rows:[new TableRow({children:[
     new TableCell({width:{size:4200,type:WidthType.DXA},borders:docxNoBorder(),children:leftKids}),
     new TableCell({width:{size:4800,type:WidthType.DXA},borders:docxNoBorder(),children:rightKids})]})]}))}}
- /* footer line */
- children.push(new Paragraph({spacing:{before:400},alignment:AlignmentType.CENTER,children:[new TextRun({text:[co.name,co.footer].filter(Boolean).join(' · '),size:16,color:'778899',font:'Calibri'})]}));
+ /* running header: company logo left, client logo centre; footer: full name · title · page x of y */
+ const nb={top:{style:BorderStyle.NONE,size:0,color:'FFFFFF'},bottom:{style:BorderStyle.NONE,size:0,color:'FFFFFF'},left:{style:BorderStyle.NONE,size:0,color:'FFFFFF'},right:{style:BorderStyle.NONE,size:0,color:'FFFFFF'}};
+ const hImg=async(src,al)=>{let r=null;try{const s=await logoPng(src);if(s){const z=await imgSize(s);const sc=Math.min(110/z.w,30/z.h);r=docxImg(s,Math.round(z.w*sc),Math.round(z.h*sc))}}catch(e){}return new Paragraph({alignment:al,children:r?[r]:[]})};
+ const cell=(kids)=>new TableCell({borders:nb,width:{size:33,type:WidthType.PERCENTAGE},children:kids});
+ const hdr=new Table({width:{size:100,type:WidthType.PERCENTAGE},borders:{...nb,insideHorizontal:nb.top,insideVertical:nb.top},rows:[new TableRow({children:[cell([await hImg(co.logo,AlignmentType.LEFT)]),cell([await hImg(RM.clogo,AlignmentType.CENTER)]),cell([new Paragraph('')])]})]});
+ const fr=(t)=>new TextRun({text:t,size:16,color:'828C9B',font:'Calibri'});
+ const ftr=new Table({width:{size:100,type:WidthType.PERCENTAGE},borders:{...nb,insideHorizontal:nb.top,insideVertical:nb.top},rows:[new TableRow({children:[cell([new Paragraph({children:[fr(RM.full)]})]),cell([new Paragraph({alignment:AlignmentType.CENTER,children:[fr(RM.title)]})]),cell([new Paragraph({alignment:AlignmentType.RIGHT,children:[fr('Page '),new TextRun({children:[PageNumber.CURRENT],size:16,color:'828C9B',font:'Calibri'}),fr(' of '),new TextRun({children:[PageNumber.TOTAL_PAGES],size:16,color:'828C9B',font:'Calibri'})]})])]})]});
  const doc=new Document({styles:{default:{document:{styles:[{id:'Normal',run:{font:'Calibri',size:20}}]}}},
   numbering:{config:[{reference:'notes-num',levels:[{level:0,format:'decimal',text:'%1.',alignment:AlignmentType.LEFT,style:{paragraph:{indent:{left:720,hanging:360}}}}]}]},
   sections:[{properties:{page:{margin:{top:720,right:720,bottom:720,left:720}}},
-   headers:[new Header({children:[new Paragraph({alignment:AlignmentType.RIGHT,children:[new TextRun({text:o.title||p.name||'',size:16,color:'8A94A6',font:'Calibri'})]})]})],
-   footers:[new Footer({children:[new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:'Page ',size:16,font:'Calibri'}),new TextRun({children:[PageNumber.CURRENT],size:16,font:'Calibri'}),new TextRun({text:' of ',size:16,font:'Calibri'}),new TextRun({children:[PageNumber.TOTAL_PAGES],size:16,font:'Calibri'})]})]})],
+   headers:{default:new Header({children:[hdr]})},footers:{default:new Footer({children:[ftr]})},
    children}]});
  const blob=await Packer.toBlob(doc);const fname=`${safeName(o.title||p.name)}_${today()}.docx`;
  window.__lastDocx={name:fname};if(!opt.noDownload)download(fname,blob);return blob}
