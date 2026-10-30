@@ -40192,7 +40192,7 @@ async function generatePDF(d,o,opt={}){await coFresh();const{jsPDF}=window.jspdf
  /* sign-off */
  const sg=d.audits.filter(x=>x.signature);if(sg.length){ensure(20);y+=4;heading('Sign-off');for(const x of sg){ensure(40);font(9,'bold');T(`${x.inspector||'Inspector'}`,M,y);font(8.5,'normal',GREY);T(`${x.title} · ${fmtDate(x.date)}`,M,y+4.5);const s=await imgSize(x.signature);const[w,h]=fit(s.w,s.h,70,24);doc.addImage(x.signature,'PNG',M,y+7,w,h);doc.setDrawColor(150,160,170);doc.line(M,y+32,M+80,y+32);y+=40}}
  /* page header + footer: inspecting company logo / name / address */
- await pdfChrome(doc,co,{M,left:RM.full,mid:RM.title,clogo:RM.clogo,font,T});const n=doc.getNumberOfPages();
+ pdfEndPage(doc,font,acc);await pdfChrome(doc,co,{M,left:RM.full,mid:RM.title,clogo:RM.clogo,font,T});const n=doc.getNumberOfPages();
  const fname=`${safeName(o.title||p.name)}_${today()}.pdf`;window.__lastPdf={name:fname,pages:n};if(!opt.noDownload)doc.save(fname);return doc}
 
 async function printView(d,o){const done=busy('Preparing print view…');try{await coFresh();const acc=o.color,lt=`rgb(${mix(hex2rgb(acc),.88).join(',')})`,p=d.project,a=d.audit,per=+o.perRow||3,all=d.allItems,co=coInfo(coOf(p)),logo=co.logo,clogo=p.logo&&p.logo!==co.logo?p.logo:'';
@@ -40224,6 +40224,7 @@ ${RC_CSS}:root{--acc:${acc}}
  if(o.checklists&&d.checklists.length){h+=`<h2 class="pb">Checklists</h2>`;for(const c of d.checklists)h+=`<h3>${esc(c.name)}</h3><table><tr><th>Question</th><th style="width:60px">Answer</th><th>Comment</th></tr>${c.questions.map(q=>q.section?`<tr class="sec"><td colspan="3">${esc(q.text)}</td></tr>`:`<tr><td>${esc(q.text)}</td><td style="font-weight:bold;color:${{yes:'#16a34a',no:'#dc2626',na:'#64748b'}[q.answer]||'#999'}">${{yes:'YES',no:'NO',na:'N/A'}[q.answer]||'–'}</td><td>${esc(q.comment||'')}</td></tr>`).join('')}</table>`}
  if(o.drawings)for(const dr of d.drawings){const pinned=items.filter(i=>i.pin&&i.pin.drawingId===dr.id);if(!pinned.length)continue;const c=await drawingCanvas(dr,items,{maxW:2000});h+=`<div class="pb dw"><h2>Drawing: ${esc(dr.name)}</h2><img src="${c.toDataURL('image/jpeg',.85)}"><p style="font-size:9pt">${pinned.map(i=>`<b style="color:${STATUS_COLOR[i.status]}">${a?issueNo(i):issueRef(i)}</b> ${esc(i.title)}`).join(' &nbsp;·&nbsp; ')}</p></div>`}
  const sg=d.audits.filter(x=>x.signature);if(sg.length)h+=`<h2>Sign-off</h2>${sg.map(x=>`<div style="margin-bottom:14px"><img src="${x.signature}" style="height:70px"><div style="border-top:1px solid #999;width:260px;padding-top:4px"><b>${esc(x.inspector||'Inspector')}</b> · ${esc(x.title)} · ${fmtDate(x.date)}</div></div>`).join('')}`;
+ h+=`<section class="eor pb" style="min-height:220mm;display:flex;align-items:center;justify-content:center"><div style="text-align:center;color:${acc};font-weight:700;font-size:20pt;letter-spacing:.06em;border-top:2px solid ${acc};border-bottom:2px solid ${acc};padding:10px 40px">END OF REPORT</div></section>`;
  h+=`<div class="cofoot" style="display:flex;justify-content:space-between;gap:12px"><span>${esc(RM.full)}</span><span>${esc(RM.title)}</span></div></body></html>`;
  const fr=document.createElement('div');fr.className='report-frame';fr.innerHTML=`<div class="bar"><b style="flex:1">Print preview – ${esc(o.title)}</b><button class="btn sm primary" data-p>${ic('print')} Print / Save as PDF</button>${Dbx.connected()?`<button class="btn sm" data-dbx>${ic('upload')} Save PDF to Dropbox</button>`:''}<button class="btn sm" data-c>Close</button></div><iframe title="Report"></iframe>`;document.body.appendChild(fr);const ifr=fr.querySelector('iframe');ifr.srcdoc=h;
  fr.querySelector('[data-p]').onclick=()=>ifr.contentWindow.print();fr.querySelector('[data-c]').onclick=()=>fr.remove();const db=fr.querySelector('[data-dbx]');if(db)db.onclick=async()=>{const dn=busy('Generating PDF for Dropbox…');try{const doc=await generatePDF(d,o,{noDownload:true});dn();await Sync.uploadReport(doc.output('blob'),d,o)}catch(e){alertBox('Failed: '+e.message)}finally{dn()}}}finally{done()}}
@@ -41484,7 +41485,7 @@ async function conPDF(d,o,opt={}){await coFresh();const{jsPDF}=window.jspdf;cons
      doc.setFillColor(...light);doc.rect(M,y,PW-2*M,bh,'F');font(11,'bold',acc);T(nt,M+3,y+6.1);font(10.5,'bold');tls.forEach((l,j)=>T(l,M+3+nw,y+6.1+j*PDF_HL));chip(it.status,PW-M-2-sw,y+6,STATUS_COLOR[it.status]);chip(it.priority,PW-M-4-sw-pw,y+6,PRIO_COLOR[it.priority]);if(phl)chip(phl,PW-M-4-sw-pw-fw,y+6,PHASE_COLOR);y+=bh+4;
      y=await L.draw(y);drewIssue=true;
      y+=1;doc.setDrawColor(226,232,240);doc.setLineWidth(.3);doc.line(M,y,PW-M,y);y+=6}}}}
- await pdfChrome(doc,co,{M,left:RM.full,mid:RM.title,clogo:RM.clogo,font,T});const n=doc.getNumberOfPages();
+ pdfEndPage(doc,font,acc);await pdfChrome(doc,co,{M,left:RM.full,mid:RM.title,clogo:RM.clogo,font,T});const n=doc.getNumberOfPages();
  const fname=`${safeName(d.fileName)}.pdf`;window.__lastPdf={name:fname,pages:n,consolidated:true};if(!opt.noDownload)doc.save(fname);return doc}
 Object.assign(ACT,{'con-report':el=>conDialog(el.dataset.id)});
 
@@ -41634,6 +41635,10 @@ function rptFieldsHtml(p){const e=k=>esc(p[k]||'');return`<p class="help full" s
  <label><span>Issue date <span class="muted small">(blank = today)</span></span><input type="date" name="issueDate" value="${e('issueDate')}"></label>
  <label class="full"><span>Survey</span><input name="survey" value="${e('survey')}" placeholder="Blank = the inspections included (auto)"></label>`}
 const rptFieldsCollect=el=>{const o={};for(const k of['fullName','rptTitle','rptNo','issueDate','survey']){const i=el.querySelector(`[name=${k}]`);if(i)o[k]=i.value.trim()}return o};
+/* closing page: 'END OF REPORT' centred in the accent colour; the normal header/footer are added by pdfChrome afterwards */
+function pdfEndPage(doc,font,acc){doc.addPage();const w=doc.internal.pageSize.getWidth(),h=doc.internal.pageSize.getHeight(),cy=h/2;
+ doc.setDrawColor(...acc);doc.setLineWidth(.6);doc.line(w/2-40,cy-12,w/2+40,cy-12);doc.line(w/2-40,cy+7,w/2+40,cy+7);
+ font(20,'bold',acc);doc.text('END OF REPORT',w/2,cy,{align:'center'})}
 async function pdfChrome(doc,co,{M,left,mid,clogo,font,T}){const n=doc.getNumberOfPages();for(let i=1;i<=n;i++){doc.setPage(i);const w=doc.internal.pageSize.getWidth(),h=doc.internal.pageSize.getHeight();
   if(i>1){if(co.logo){try{await pdfLogo(doc,co.logo,M,4.2,24,7.5,'co-logo',true)}catch(e){}}if(clogo){try{await pdfLogo(doc,clogo,w/2-20,3.4,40,8.6,'client-logo')}catch(e){}}doc.setDrawColor(226,232,240);doc.setLineWidth(.3);doc.line(M,12.6,w-M,12.6);
    doc.line(M,h-12.5,w-M,h-12.5)}
@@ -42556,6 +42561,7 @@ async function generateDocx(d,o,opt={}){if(!docxReady())throw new Error('Word ex
  const hdr=new Table({width:{size:100,type:WidthType.PERCENTAGE},borders:{...nb,insideHorizontal:nb.top,insideVertical:nb.top},rows:[new TableRow({children:[cell([await hImg(co.logo,AlignmentType.LEFT)]),cell([await hImg(RM.clogo,AlignmentType.CENTER)]),cell([new Paragraph('')])]})]});
  const fr=(t)=>new TextRun({text:t,size:16,color:'828C9B',font:'Calibri'});
  const ftr=new Table({width:{size:100,type:WidthType.PERCENTAGE},borders:{...nb,insideHorizontal:nb.top,insideVertical:nb.top},rows:[new TableRow({children:[cell([new Paragraph({children:[fr(RM.full)]})]),cell([new Paragraph({alignment:AlignmentType.CENTER,children:[fr(RM.title)]})]),cell([new Paragraph({alignment:AlignmentType.RIGHT,children:[fr('Page '),new TextRun({children:[PageNumber.CURRENT],size:16,color:'828C9B',font:'Calibri'}),fr(' of '),new TextRun({children:[PageNumber.TOTAL_PAGES],size:16,color:'828C9B',font:'Calibri'})]})])]})]});
+ children.push(new Paragraph({pageBreakBefore:true,spacing:{before:5600},alignment:AlignmentType.CENTER,border:{top:{style:BorderStyle.SINGLE,size:12,color:String(acc).replace('#',''),space:8},bottom:{style:BorderStyle.SINGLE,size:12,color:String(acc).replace('#',''),space:8}},indent:{left:2600,right:2600},children:[new TextRun({text:'END OF REPORT',bold:true,size:40,color:String(acc).replace('#',''),font:'Calibri'})]}));
  const doc=new Document({styles:{default:{document:{styles:[{id:'Normal',run:{font:'Calibri',size:20}}]}}},
   numbering:{config:[{reference:'notes-num',levels:[{level:0,format:'decimal',text:'%1.',alignment:AlignmentType.LEFT,style:{paragraph:{indent:{left:720,hanging:360}}}}]}]},
   sections:[{properties:{page:{margin:{top:720,right:720,bottom:720,left:720}}},
