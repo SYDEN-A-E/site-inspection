@@ -39625,8 +39625,6 @@ const insCode=aid=>'I'+(auditSeq(aid)||'?');
 const catDisp=c=>{const s=String(c||'').trim();if(!s)return'';const m=/^(.+?)[\s_\/\-–—]+(MEC|MECH)$/i.exec(s);return m?m[1].trim():s};
 const catCanon=catDisp;
 const TRADE_PFX=[
- /* swimming pool / irrigation first so pool pumps, pool lighting, irrigation sprinklers keep their own group */
- [/swim|\bpools?\b|^swp\b/i,'SWP'],[/irrig|^irr\b/i,'IRR'],
  [/fire|life\s*safety|\bfls\b|sprinkl|smoke/i,'FLS'],
  /* HVAC before Mechanical: Fares wants AC (not MEC) for HVAC / A/C / chillers / AHU / FCU / VRF / ductwork … */
  [/^ac\b|hvac|\ba\/?c\b|air[\s-]*cond|chill|\bahu\b|\bfcu\b|\bvrf\b|duct|ventil|extract\s*fan|grille|diffuser|split\s*unit/i,'AC'],
@@ -39637,7 +39635,7 @@ const TRADE_PFX=[
  [/elec|lighting|\bpower\b|cabl|wiring|containment|socket/i,'ELE'],
  [/struct|civil|concrete|steel|rebar|foundation/i,'STR'],[/arch|finish|paint|tiling|tile|floor|joinery|carpent|door|window|glaz|fa[cç]ade|plaster|blockwork|waterproof|ceiling|partition|cladding|masonry/i,'ARC'],
  [/landscap|external|hardscape/i,'EXT'],[/health|\bhse\b|safety/i,'HSE']];
-const PFX_ORDER=['FLS','AC','PLU','SWP','IRR','ELE','ELV','SEC','ARC','STR','MEC']; // Fares' report order; then other / custom trades (incl. EXT, HSE; alphabetical), then GEN
+const PFX_ORDER=['FLS','AC','PLU','MEC','SWP','IRR','ELE','ELV','SEC','ARC','STR']; // Fares' report order; then other / custom trades (incl. EXT, HSE; alphabetical), then GEN
 const PFX_BUILTIN=new Set([...PFX_ORDER,'EXT','HSE','GEN']);
 /* custom trade (no keyword match) → own 3-letter prefix from its name, never one of the built-in prefixes; deterministic (same name → same prefix on every device) */
 function customPfx(name){const w=String(name).normalize('NFKD').replace(/[^A-Za-z0-9 ]+/g,' ').toUpperCase().split(/\s+/).filter(Boolean);if(!w.length)return'GEN';const all=w.join('');
@@ -39647,7 +39645,7 @@ const _PFX=new Map();
 const tradePfx=(cat,sub)=>{const raw=String(cat||'').trim(),s=String(sub||'').trim(),c=catDisp(raw);if(!c&&!s&&!raw)return'GEN';const key=raw+'\0'+s;if(_PFX.has(key))return _PFX.get(key);let r='GEN';const hit=x=>{if(!x)return'';for(const[re,p]of TRADE_PFX)if(re.test(x))return p;return''};
  /* subcategory (or subcategory used as the trade) wins over a generic parent like Mechanical → so HVAC under Mechanical → AC */
  const parent=typeof TAXONOMY!=='undefined'&&c&&!TAXONOMY[c]?Object.keys(TAXONOMY).find(t=>Object.keys(TAXONOMY[t]||{}).some(sb=>sb.toLowerCase()===c.toLowerCase())):null;
- const tl=/swim|\bpools?\b|^swp\b/i.test(c||raw)?'SWP':/irrig|^irr\b/i.test(c||raw)?'IRR':''; // a Swimming Pool / Irrigation trade keeps its group whatever the subcategory
+ const tn=String(c||raw),tl=/^(swimming\s*pools?|pools?|swp)$/i.test(tn)?'SWP':/^(irrigation|irr)$/i.test(tn)?'IRR':''; // only the TRADE name Swimming Pool / Irrigation → SWP / IRR (a 'Pool pump' subcategory under Plumbing stays PLU)
  r=tl||hit(s)||hit(c)||hit(raw)||hit([c,s].filter(Boolean).join(' '))||(parent&&hit(parent))||(/^(general|gen|misc|miscellaneous|other|others|no trade)$/i.test(c||s)?'GEN':customPfx(c||s||raw));_PFX.set(key,r);return r};
 const itemPfx=i=>!i?'GEN':tradePfx(i.category,i.subcategory);
 const pfxRank=p=>{const k=PFX_ORDER.indexOf(p);if(k>=0)return k;if(p==='GEN'||!p)return 99;const x=String(p);return 50+[...x].reduce((a,ch,i)=>a+(ch.charCodeAt(0)-47)/Math.pow(48,i+1),0)};
