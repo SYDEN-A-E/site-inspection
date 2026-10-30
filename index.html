@@ -39913,7 +39913,7 @@ function hydrate(root=document){$$('img[data-photo]',root).forEach(async im=>{if
  $$('img[data-pincrop]',root).forEach(async im=>{const it=byId('items',im.dataset.pincrop);if(!it||!it.pin)return;const d=byId('drawings',it.pin.drawingId);if(!d)return;const k=it.id+it.pin.x+it.pin.y+it.status;let u=cropCache.get(k);if(!u){const c=await drawingCanvas(d,[it],{crop:it.pin,maxW:600});u=c.toDataURL('image/jpeg',.85);cropCache.set(k,u)}im.src=u})}
 
 /* ===== Forms ===== */
-const projectFields=()=>[{k:'name',label:'Project name',req:true,full:true},{k:'reference',label:'Reference / job no.'},{k:'client',label:'Client'},{k:'address',label:'Site address',full:true},{k:'date',label:'Project date',type:'date'},companyField(),{k:'fullName',label:'Project full name / location (report cover, footer)',full:true,ph:'e.g. ESSQUE ZALU RESORT, NUNGWI, ZANZIBAR, TANZANIA'},{k:'rptTitle',label:'Report title',full:true,ph:'e.g. FLS AND MEP CONDITION ASSESSMENT REPORT'},{k:'rptNo',label:'Report number',ph:'Blank = <project>-ENG-RPT-001-r00'},{k:'issueDate',label:'Issue date',type:'date'},{k:'survey',label:'Survey',full:true,ph:'Blank = the inspections included (auto)'},{k:'logo',label:'Client / hotel logo (report cover & header)',type:'image'},{k:'notes',label:'Notes',type:'textarea',full:true}];
+const projectFields=()=>[{k:'name',label:'Project name',req:true,full:true},{k:'reference',label:'Reference / job no.'},{k:'client',label:'Client'},{k:'address',label:'Site address',full:true},{k:'date',label:'Project date',type:'date'},companyField(),{k:'fullName',label:'Project full name / location (report cover, footer)',full:true,ph:'e.g. ESSQUE ZALU RESORT, NUNGWI, ZANZIBAR, TANZANIA'},{k:'rptTitle',label:'Report title',full:true,ph:'e.g. FLS AND MEP CONDITION ASSESSMENT REPORT'},{k:'rptNo',label:'Report number',ph:'Blank = <project>-ENG-RPT-001-r00'},{k:'issueDate',label:'Issue date (blank = today)',type:'date'},{k:'survey',label:'Survey',full:true,ph:'Blank = the inspections included (auto)'},{k:'logo',label:'Client / hotel logo (report cover & header)',type:'image'},{k:'notes',label:'Notes',type:'textarea',full:true}];
 const defaultInspector=()=>localStorage.getItem('sap.inspector')||currentUser().name||'';
 const auditFields=()=>[{k:'title',label:'Inspection title',req:true,full:true,ph:'e.g. Pre-handover inspection'},{k:'date',label:'Date',type:'date'},{k:'inspector',label:'Inspector'},{k:'weather',label:'Weather',type:'select',options:WEATHER},{k:'attendees',label:'Attendees / present'},{k:'notes',label:'Notes / general observations',type:'textarea',full:true},{k:'signature',label:'Inspector signature',type:'signature'}];
 function nextNumber(aid,cat,except,sub){const p=tradePfx(cat,sub);return auditItems(aid).reduce((m,i)=>i.id!==except&&itemPfx(i)===p?Math.max(m,i.number||0):m,0)+1} // per inspection and trade prefix
@@ -40116,7 +40116,7 @@ async function reportDialog(scope){const isA=scope.type==='audit';const obj=byId
  <p class="help">PDF or Word (.docx) downloads a file you can share by email / WhatsApp. Print view opens a printable page (use “Save as PDF” in the print dialog).</p>`,
  buttons:[{label:'Cancel',value:null},{label:'CSV',value:'csv'},{label:'Print view',value:'print'},{label:'Export to Word',value:'word'},...(Dbx.connected()?[{label:'Save PDF to Dropbox',value:'dbx'}]:[]),{label:'Download PDF',value:'pdf',cls:'primary'}],
  onOpen:(el,close)=>logoCheck(el.querySelector('#lgchk'),p,close),collect:(el,v)=>{const o={};$$('input,select',el).forEach(i=>{if(i.name)o[i.name]=i.type==='checkbox'?i.checked:i.value});return{v,o}}});
- if(!r)return;const d=reportData(scope,r.o);
+ if(!r)return;try{await rptSaveFields(p,r.o)}catch(e){console.warn('report fields not saved',e)}const d=reportData(scope,r.o);
  if(r.v==='csv')return download(`${safeName(r.o.title)}_${today()}.csv`,csvBlob(d.items));
  if(r.v==='print')return printView(d,r.o);
  if(r.v==='word')return exportDocx(d,r.o);
@@ -41424,7 +41424,7 @@ async function conDialog(pid){const p=byId('projects',pid),R=projRole(p);if(R.mo
   <label class="chk"><input type="checkbox" name="closed" checked> Include closed issues</label><label class="chk"><input type="checkbox" name="photos" checked> Photos</label><label class="chk"><input type="checkbox" name="charts" checked> Include charts</label>${notesChk(p,null)}</div>`,
   buttons:[{label:'Cancel',value:null},{label:'CSV',value:'csv'},{label:'Export to Word',value:'word'},...(Dbx.connected()?[{label:'Save PDF to Dropbox',value:'dbx'}]:[]),{label:'Download PDF',value:'pdf',cls:'primary'}],
   onOpen:(el,close)=>logoCheck(el.querySelector('#lgchk'),p,close),collect:(el,v)=>({v,o:{...rptFieldsCollect(el),title:el.querySelector('[name=title]').value.trim()||p.name,color:el.querySelector('[name=color]').value,closed:el.querySelector('[name=closed]').checked,photos:el.querySelector('[name=photos]').checked,charts:el.querySelector('[name=charts]').checked,notes:!!(el.querySelector('[name=notes]')||{}).checked,audits:$$('[name=aud]:checked',el).map(x=>x.value)}})});
- if(!r)return;if(!r.o.audits.length)return alertBox('Choose at least one inspection.');const d=conData(pid,r.o);
+ if(!r)return;try{await rptSaveFields(p,r.o)}catch(e){console.warn('report fields not saved',e)}if(!r.o.audits.length)return alertBox('Choose at least one inspection.');const d=conData(pid,r.o);
  if(r.v==='csv')return download(`${safeName(d.fileName)}.csv`,conCsvBlob(d.items,p));
  if(r.v==='word'){const o={...r.o,title:r.o.title||d.fileName};return exportDocx(d,o)}
  const toDbx=r.v==='dbx';const done=busy('Generating consolidated report…');try{const doc=await conPDF(d,r.o,{noDownload:toDbx});if(!toDbx)toast('PDF report downloaded');done();if(Dbx.connected()&&(toDbx||Dbx.prefs().autoPdf))await Sync.uploadReport(doc.output('blob'),d,r.o)}catch(e){console.error(e);alertBox('PDF generation failed: '+e.message)}finally{done()}}
@@ -41627,10 +41627,10 @@ function rptMeta(d,o={}){const p=d.project||{},v=k=>String(o[k]||p[k]||'').trim(
   issue:dt?`${dt.getDate()} ${RPT_MONTHS[dt.getMonth()]} ${dt.getFullYear()}`:v('issueDate'),month:dt?`${RPT_MONTHS[dt.getMonth()]} ${dt.getFullYear()}`:'',
   survey:v('survey')||rptSurveyAuto(d),clogo:p.logo&&p.logo!==(coInfo(coOf(p))||{}).logo?p.logo:''}}
 /* report dialog inputs (pre-filled from the project; blank = project value / default) */
-function rptFieldsHtml(p){const e=k=>esc(p[k]||'');return`<label class="full"><span>Project full name / location</span><input name="fullName" value="${e('fullName')}" placeholder="${esc(p.name||'')}"></label>
+function rptFieldsHtml(p){const e=k=>esc(p[k]||'');return`<p class="help full" style="margin:0">Report details are saved to the project for everyone (also in Edit project). Blank = default.</p><label class="full"><span>Project full name / location</span><input name="fullName" value="${e('fullName')}" placeholder="${esc(p.name||'')}"></label>
  <label class="full"><span>Report title</span><input name="rptTitle" value="${e('rptTitle')}" placeholder="e.g. FLS AND MEP CONDITION ASSESSMENT REPORT"></label>
  <label><span>Report number</span><input name="rptNo" value="${e('rptNo')}" placeholder="${esc(rptNoDefault(p))}"></label>
- <label><span>Issue date</span><input type="date" name="issueDate" value="${e('issueDate')||today()}"></label>
+ <label><span>Issue date <span class="muted small">(blank = today)</span></span><input type="date" name="issueDate" value="${e('issueDate')}"></label>
  <label class="full"><span>Survey</span><input name="survey" value="${e('survey')}" placeholder="Blank = the inspections included (auto)"></label>`}
 const rptFieldsCollect=el=>{const o={};for(const k of['fullName','rptTitle','rptNo','issueDate','survey']){const i=el.querySelector(`[name=${k}]`);if(i)o[k]=i.value.trim()}return o};
 async function pdfChrome(doc,co,{M,left,mid,clogo,font,T}){const n=doc.getNumberOfPages();for(let i=1;i<=n;i++){doc.setPage(i);const w=doc.internal.pageSize.getWidth(),h=doc.internal.pageSize.getHeight();
@@ -42405,10 +42405,24 @@ Object.assign(ACT,{'notes-edit':el=>notesEditor(el.dataset.kind,el.dataset.id)})
 async function notesPrepSave(store,o){const prev=await DB.get(store,o.id);if(!prev)return void(o.rptNotes!==undefined&&(o.rptNotesAt=Date.now()));
  const pj=JSON.stringify(prev.rptNotes===undefined?null:prev.rptNotes),oj=JSON.stringify(o.rptNotes===undefined?null:o.rptNotes);
  if((o.rptNotesAt||0)<(prev.rptNotesAt||0)){o.rptNotes=prev.rptNotes;o.rptNotesAt=prev.rptNotesAt;if(o.rptNotes===undefined)delete o.rptNotes;return} // stale copy: keep newer notes
- if(pj!==oj)o.rptNotesAt=Date.now();else if(prev.rptNotesAt)o.rptNotesAt=prev.rptNotesAt}
+ if(pj!==oj)o.rptNotesAt=Date.now();else if(prev.rptNotesAt)o.rptNotesAt=prev.rptNotesAt;
+ if(store==='projects')rptMetaPrep(prev,o)}
+/* Report fields (full name, title, number, issue date, survey, client logo) carry their own stamp rptMetaAt:
+ saved from Edit project or from any report dialog, they merge independently of the whole-record LWW. */
+function rptKeys(){return['fullName','rptTitle','rptNo','issueDate','survey','logo']}
+const rptPick=r=>{const o={};for(const k of rptKeys())o[k]=r&&r[k]!==undefined?r[k]:'';return JSON.stringify(o)};
+function rptMetaPrep(prev,o){if((o.rptMetaAt||0)<(prev.rptMetaAt||0)){for(const k of rptKeys()){if(prev[k]===undefined)delete o[k];else o[k]=prev[k]}o.rptMetaAt=prev.rptMetaAt;return}
+ if(rptPick(prev)!==rptPick(o))o.rptMetaAt=Date.now();else if(prev.rptMetaAt)o.rptMetaAt=prev.rptMetaAt}
+/* report dialog → project: saves only the fields that changed, WITHOUT bumping updatedAt (so a member's copy never overrides team / other project fields) */
+async function rptSaveFields(p,o){if(!p||!o)return false;const cur=byId('projects',p.id)||p;const ch={};
+ for(const k of rptKeys()){if(k==='logo'||!(k in o))continue;const v=String(o[k]||'').trim();if(v!==String(cur[k]||'').trim())ch[k]=v}
+ if(!Object.keys(ch).length)return false;const rec=JSON.parse(JSON.stringify(await DB.get('projects',cur.id)||cur));for(const[k,v]of Object.entries(ch)){if(v)rec[k]=v;else delete rec[k]}
+ rec.rptMetaAt=Math.max(Date.now(),(rec.rptMetaAt||0)+1);rec.rptMetaBy=currentUser().name||'';await DB.put('projects',rec);const i=S.projects.findIndex(x=>x.id===rec.id);if(i>=0)S.projects[i]=rec;else S.projects.push(rec);
+ const b=bundleOf('projects',rec);if(b)Sync.markDirty(b);return true}
 /* L = local, R = incoming. Returns the record to store, or null if nothing changes. */
 function notesMerge(L,R){const win=(R.updatedAt||0)>(L.updatedAt||0)?R:L,other=win===R?L:R;let out=win;
  if((other.rptNotesAt||0)>(win.rptNotesAt||0)){out={...win,rptNotes:other.rptNotes,rptNotesAt:other.rptNotesAt};if(other.rptNotes===undefined)delete out.rptNotes}
+ if((other.rptMetaAt||0)>(out.rptMetaAt||0)){out={...out,rptMetaAt:other.rptMetaAt};if(other.rptMetaBy!==undefined)out.rptMetaBy=other.rptMetaBy;for(const k of rptKeys()){if(other[k]===undefined)delete out[k];else out[k]=other[k]}}
  return out===L?null:JSON.parse(JSON.stringify(out))}
 function notesChk(p,a){const n=notesFor(p,a).length;return n?`<label class="chk"><input type="checkbox" name="notes" checked> Introduction page <span class="muted small">(${n} section${n>1?'s':''}${a&&notesOwn(a)?', this inspection':''})</span></label>`:`<input type="checkbox" name="notes" hidden><span class="small muted" style="align-self:center">No introduction page${projRole(p).admin?' – add one with “Introduction page”':''}</span>`}
 
