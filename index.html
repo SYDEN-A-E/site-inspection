@@ -40144,7 +40144,7 @@ async function generatePDF(d,o,opt={}){await coFresh();const{jsPDF}=window.jspdf
  for(const[k,v]of rows.filter(r=>r[1])){font(9.5,'normal');const ls=doc.splitTextToSize(String(v),PW-2*M-46).slice(0,6);const h=Math.max(6.4,ls.length*4.3+2.4);ensure(h);font(8,'bold',GREY);T(k.toUpperCase(),M,y);font(9.5,'normal');T(ls,M+46,y);doc.setDrawColor(230,234,240);doc.setLineWidth(.2);doc.line(M,y+h-4,PW-M,y+h-4);y+=h}
  if(!o.closed&&cnt('Closed'))
   {font(8,'italic',GREY);T(`Closed issues (${cnt('Closed')}) are excluded from this report's issue list.`,M,y);y+=6}
- const notes=[a?a.notes:'',p.notes].filter(Boolean).join('\n\n');if(notes){y+=3;font(8.5,'bold',GREY);T('NOTES',M,y);y+=5;font(9.5,'normal');for(const l of doc.splitTextToSize(notes,PW-2*M)){ensure(5);T(l,M,y);y+=4.4}}
+ const notes=[a?a.notes:'',p.notes].filter(Boolean).join('\n\n');if(notes){y+=3;font(8.5,'bold',GREY);T('NOTES',M,y);y+=5;font(9.5,'normal');y=pdfJustText(doc,T,notes,M,y,PW-2*M,4.4,{before:yy=>{y=yy;ensure(5);return y}})}
  if(!all.length){y+=2;ensure(8);font(9,'italic',GREY);T('No issues are recorded for this report.',M,y);y+=6}
  /* executive summary: charts (vector, drawn natively) */
  if(o.charts!==false&&all.length){newPage();heading('Executive summary');const r=pdfExecSummary(doc,{M,acc:o.color||THEMES.Blue,items:all,progress:rcSpansDays(all,d.audits),y,newPage:()=>newPage(),top:()=>y});y=r.y;var contY=y<PH-90;window.__lastCharts=rcCharts(all,{progress:rcSpansDays(all,d.audits)}).map(c=>c.id)}
@@ -40207,6 +40207,7 @@ table{width:100%;border-collapse:collapse;font-size:9pt}th{background:${acc};col
 .fields{display:grid;grid-template-columns:repeat(3,1fr);gap:6px 12px;margin:8px 0}.fields small{display:block;color:#778;font-size:7.5pt;font-weight:bold;text-transform:uppercase}.ib{display:grid;grid-template-columns:47% 1fr;gap:14px;margin-top:8px;align-items:start}.ib.nophoto{grid-template-columns:1fr}
 .noph{height:34mm;border:1px solid #e2e8f0;background:#f4f6f9;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#969eaa;font-size:9pt}.ib .main figure{margin:0 0 8px;break-inside:avoid;page-break-inside:avoid}.ib .main img{width:auto;max-width:100%;height:auto;max-height:110mm;display:block;margin:0 auto}.ib .main figcaption.ucap{font-style:italic;font-weight:normal;margin-top:3px;color:#475569;text-align:center}.kv{display:grid;grid-template-columns:28mm 1fr;gap:3px 8px;font-size:9.5pt}.nophoto .kv{grid-template-columns:28mm 1fr 28mm 1fr}.kv small,small.bl{color:#778;font-size:7.5pt;font-weight:bold;text-transform:uppercase;padding-top:2px}small.bl{display:block;margin-top:10px}.kv .over{color:#be123c;font-weight:bold}figcaption{font-size:8pt;color:#667}.desc p{margin:0 0 6px}.desc ul,.desc ol{margin:0 0 8px 18px;padding:0}.desc li{margin:2px 0}.desc b{font-weight:700}.desc u{text-decoration:underline}
 ${RC_CSS}:root{--acc:${acc}}
+.desc,.desc p,.desc li,.rn-page p,.rn-page li{text-align:justify;text-justify:inter-word;text-align-last:left}
 .chip{color:#fff;border-radius:4px;padding:1px 7px;font-size:8.5pt;margin-left:4px;white-space:nowrap}.pb{break-before:page;page-break-before:always}.dw img{max-width:100%;max-height:235mm;display:block;margin:auto;border:1px solid #ccd}.desc{white-space:normal}.sec td{background:${lt}!important;font-weight:bold;color:${acc}}
 </style></head><body><div class="cover"><div><div class="kick" style="font-weight:bold;letter-spacing:.06em">${esc(RM.full.toUpperCase())}</div><h1>${esc(RM.title)}</h1><div class="co">${esc(RM.month)}</div></div>${logo||clogo?`<div class="lgs">${logo?`<div class="lg"><img src="${logo}" alt="${esc(co.name)}"></div>`:''}${clogo?`<div class="lg"><img src="${clogo}" alt=""></div>`:''}</div>`:''}</div>${logo||clogo?`<div class="runhead"><span class="rl">${logo?`<img src="${logo}" alt="">`:''}</span><span class="rc">${clogo?`<img src="${clogo}" alt="">`:''}</span><span class="rr"></span></div>`:''}
 <dl>${kv.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${[a?a.notes:'',p.notes].filter(Boolean).map(n=>`<p class="desc">${esc(n)}</p>`).join('')}`;
@@ -42374,11 +42375,12 @@ function pdfNotes(C,secs){const{doc,font,M}=C;const W=()=>C.PW()-2*M,size=10,lh=
    const add=(cur.length?sp:0)+l;if(cur.length&&wd+add>maxW){lines.push(cur);cur=[];wd=0}wd+=(cur.length?sp:0)+l;cur.push({t,b:w.b,u:!!w.u})}
   if(cur.length)lines.push(cur);return lines};
  const uline=(str,x,y,bold)=>{font(size,bold?'bold':'normal',C.DARK);doc.text(str,x,y);const w=doc.getTextWidth(str);doc.setDrawColor(...C.DARK);doc.setLineWidth(0.3);doc.line(x,y+0.7,x+w,y+0.7)};
- const draw=(line,x)=>{let xx=x;for(const[k,w]of line.entries()){if(k){doc.setFont('helvetica','normal');xx+=doc.getTextWidth(' ')}for(const part of(w.parts||[w])){font(size,part.b?'bold':'normal',C.DARK);if(part.u||w.u)uline(part.t,xx,C.Y(),part.b);else doc.text(part.t,xx,C.Y());xx+=doc.getTextWidth(part.t)}}};
+ const draw=(line,x,maxW,last)=>{let xx=x;doc.setFont('helvetica','normal');doc.setFontSize(size);const spW=doc.getTextWidth(' ');const nat=line.reduce((a,w,k)=>a+(k?spW:0)+(w.parts||[w]).reduce((s,p)=>{doc.setFont('helvetica',p.b?'bold':'normal');doc.setFontSize(size);return s+doc.getTextWidth(p.t)},0),0);const gp=maxW?pdfJustGap(nat,maxW,line.length-1,last,spW):0;
+  for(const[k,w]of line.entries()){if(k){xx+=spW+gp}for(const part of(w.parts||[w])){font(size,part.b?'bold':'normal',C.DARK);if(part.u||w.u)uline(part.t,xx,C.Y(),part.b);else doc.text(part.t,xx,C.Y());xx+=doc.getTextWidth(part.t)}}};
  for(const s of secs){if(s.title){C.ensure(9+lh*2);font(12,'bold',C.acc);const tl=doc.splitTextToSize(s.title,W());for(const l of tl){C.ensure(6);doc.text(l,M,C.Y()+4);C.setY(C.Y()+6)}C.setY(C.Y()+1.5)}
   for(const b of notesBlocks(s.body)){const items=b.t==='ul'||b.t==='ol'?b.items:[b.runs];let num=b.n||1;
    for(const r of items){const pad=b.t==='ul'||b.t==='ol'?5:0;const x=M+pad;const lines=lineSet(r,x,W()-pad);
-    lines.forEach((ln,k)=>{C.ensure(lh+1);C.setY(C.Y()+lh-1);if(k===0&&b.t==='ul'){font(size,'bold',C.acc);doc.text('•',M+1.2,C.Y())}else if(k===0&&b.t==='ol'){font(size,'bold',C.acc);doc.text((num++)+'.',M+0.4,C.Y())}draw(ln,x);C.setY(C.Y()+1)});C.setY(C.Y()+(b.t==='ul'||b.t==='ol'?0.8:2.4))}
+    lines.forEach((ln,k)=>{C.ensure(lh+1);C.setY(C.Y()+lh-1);if(k===0&&b.t==='ul'){font(size,'bold',C.acc);doc.text('•',M+1.2,C.Y())}else if(k===0&&b.t==='ol'){font(size,'bold',C.acc);doc.text((num++)+'.',M+0.4,C.Y())}draw(ln,x,W()-pad,k===lines.length-1);C.setY(C.Y()+1)});C.setY(C.Y()+(b.t==='ul'||b.t==='ol'?0.8:2.4))}
    if(b.t==='ul'||b.t==='ol')C.setY(C.Y()+1.6)}
   C.setY(C.Y()+4)}}
 /* ---- editor (admins) ---- */
@@ -42458,6 +42460,13 @@ function rtBind(root){if(!root||root._rt)return;root._rt=1;root.addEventListener
  const ta=b.closest('.rt-wrap, .rn-ed, label, .form-grid, #rn-root')?.querySelector('textarea.rt-ta, textarea.rn-b, textarea[name=description]')||document.activeElement;
  if(ta&&ta.tagName==='TEXTAREA')rtApply(ta,b.dataset.rt)})}
 /* ---- PDF: draw a rich-text block (description etc.) into the right column ---- */
+/* Justified body text: extra space per gap for a line, 0 = draw ragged. Never on a paragraph's last line, nor when the line is
+ short (<72% full) or would need gaps wider than 3.2× a normal space – avoids badly stretched short lines. */
+function pdfJustGap(natW,maxW,gaps,last,spW){if(last||gaps<1||!(maxW>0)||natW>=maxW||natW<maxW*0.72)return 0;const e=(maxW-natW)/gaps;return e>(spW||1)*2.2?0:e}
+/* plain-text paragraphs (splitTextToSize lines), justified except each paragraph's last line */
+function pdfJustText(doc,T,text,x,y,maxW,lh,opt={}){let n=0;const spW=doc.getTextWidth(' ');for(const para of String(text).split(/\n/)){const ls=para.trim()?doc.splitTextToSize(para,maxW):[''];
+ ls.forEach((l,k)=>{if(opt.before)y=opt.before(y);const ws=l.trim().split(/\s+/);const g=pdfJustGap(doc.getTextWidth(l.trim()),maxW,ws.length-1,k===ls.length-1,spW);
+  if(!g)T(l,x,y);else{let xx=x;for(const w of ws){T(w,xx,y);xx+=doc.getTextWidth(w)+spW+g}}y+=lh;n++})}return y}
 function pdfRichBlock(C,label,body,x,rw,col){const{doc,font,T}=C,GREY=[110,120,135],DARK=[30,36,48],size=9.5,lh=4.3;const out=[];
  out.push({h:3,draw(){}});
  if(label)out.push({h:4.5,draw(y){font(7,'bold',col||GREY);T(String(label).toUpperCase(),x,y+2.6)}});
@@ -42472,7 +42481,8 @@ function pdfRichBlock(C,label,body,x,rw,col){const{doc,font,T}=C,GREY=[110,120,1
   for(const r of items){const pad=b.t==='ul'||b.t==='ol'?6:0;const lines=lineSet(r,rw-pad-1);const mark=b.t==='ul'?'•':b.t==='ol'?((n++)+'.'):'';
    const h=Math.max(1,lines.length)*lh+(b.t==='ul'||b.t==='ol'?0.8:2);
    out.push({h,draw(y0){let y=y0;lines.forEach((ln,k)=>{if(k===0&&mark){font(size,'bold',col||C.acc||GREY);T(mark,x+0.4,y+3)}
-    let xx=x+pad;for(const w of ln){if(w.sp){xx+=tw(' ',false);continue}font(size,w.b?'bold':'normal',DARK);T(w.t,xx,y+3);if(w.u){const ww=tw(w.t,w.b);doc.setDrawColor(...DARK);doc.setLineWidth(.3);doc.line(xx,y+3.7,xx+ww,y+3.7)}xx+=tw(w.t,w.b)}y+=lh})}})}}
+    while(ln.length&&ln[ln.length-1].sp)ln.pop();const spW=tw(' ',false),nat=ln.reduce((a,w)=>a+(w.sp?spW:tw(w.t,w.b)),0),gp=pdfJustGap(nat,rw-pad-1,ln.filter(w=>w.sp).length,k===lines.length-1,spW);
+    let xx=x+pad;for(const w of ln){if(w.sp){xx+=spW+gp;continue}font(size,w.b?'bold':'normal',DARK);T(w.t,xx,y+3);if(w.u){const ww=tw(w.t,w.b);doc.setDrawColor(...DARK);doc.setLineWidth(.3);doc.line(xx,y+3.7,xx+ww,y+3.7)}xx+=tw(w.t,w.b)}y+=lh})}})}}
  return out}
 /* ---- Word (.docx) export – mirrors PDF: cover, summary tables, notes, issues (left photos / right text) ---- */
 function docxReady(){return !!(window.docx&&docx.Document&&docx.Packer)}
@@ -42481,9 +42491,9 @@ function docxImg(data,wPx,hPx,maxW){if(!data||!/^data:image\//.test(data))return
  return new docx.ImageRun({type:/png/i.test(data)?'png':'jpg',data:u,transformation:{width:w,height:h},altText:{title:'Photo',description:'Issue photo',name:'photo'}})}catch(e){return null}}
 function docxRuns(runs){return(runs||[]).map(r=>new docx.TextRun({text:r.t,bold:!!r.b,underline:r.u?{}:undefined,size:20,font:'Calibri'}))}
 function docxBodyParas(body){const out=[];for(const b of notesBlocks(body)){
-  if(b.t==='ul')b.items.forEach(r=>out.push(new docx.Paragraph({bullet:{level:0},children:docxRuns(r),spacing:{after:80}})));
-  else if(b.t==='ol')b.items.forEach((r,i)=>out.push(new docx.Paragraph({numbering:{reference:'notes-num',level:0},children:docxRuns(r),spacing:{after:80}})));
-  else out.push(new docx.Paragraph({children:docxRuns(b.runs),spacing:{after:140}}))}
+  if(b.t==='ul')b.items.forEach(r=>out.push(new docx.Paragraph({alignment:docx.AlignmentType.JUSTIFIED,bullet:{level:0},children:docxRuns(r),spacing:{after:80}})));
+  else if(b.t==='ol')b.items.forEach((r,i)=>out.push(new docx.Paragraph({alignment:docx.AlignmentType.JUSTIFIED,numbering:{reference:'notes-num',level:0},children:docxRuns(r),spacing:{after:80}})));
+  else out.push(new docx.Paragraph({alignment:docx.AlignmentType.JUSTIFIED,children:docxRuns(b.runs),spacing:{after:140}}))}
  return out.length?out:[new docx.Paragraph({children:[]})]}
 function docxKV(rows){return new docx.Table({width:{size:100,type:docx.WidthType.PERCENTAGE},columnWidths:[2200,6800],
  rows:rows.filter(r=>r[1]).map(([k,v])=>new docx.TableRow({children:[
@@ -42534,7 +42544,7 @@ async function generateDocx(d,o,opt={}){if(!docxReady())throw new Error('Word ex
    const rightKids=[];
    for(const[k,v]of kv)rightKids.push(new Paragraph({spacing:{after:40},children:[new TextRun({text:k.toUpperCase()+'  ',bold:true,size:14,color:'667788',font:'Calibri'}),new TextRun({text:String(v),size:18,font:'Calibri'})]}));
    if(it.description){rightKids.push(new Paragraph({spacing:{before:100,after:40},children:[new TextRun({text:'DESCRIPTION',bold:true,size:14,color:'667788',font:'Calibri'})]}));rightKids.push(...docxBodyParas(it.description))}
-   if(it.flag&&typeof flagText==='function'){rightKids.push(new Paragraph({spacing:{before:100,after:40},children:[new TextRun({text:'CROSS-TRADE FLAG',bold:true,size:14,color:'7C3AED',font:'Calibri'})]}));rightKids.push(new Paragraph({children:[new TextRun({text:flagText(it,p),size:18,font:'Calibri'})]}))}
+   if(it.flag&&typeof flagText==='function'){rightKids.push(new Paragraph({spacing:{before:100,after:40},children:[new TextRun({text:'CROSS-TRADE FLAG',bold:true,size:14,color:'7C3AED',font:'Calibri'})]}));rightKids.push(new Paragraph({alignment:docx.AlignmentType.JUSTIFIED,children:[new TextRun({text:flagText(it,p),size:18,font:'Calibri'})]}))}
    if(!rightKids.length)rightKids.push(new Paragraph({children:[]}));
    children.push(new Table({width:{size:100,type:WidthType.PERCENTAGE},columnWidths:[4200,4800],rows:[new TableRow({children:[
     new TableCell({width:{size:4200,type:WidthType.DXA},borders:docxNoBorder(),children:leftKids}),
